@@ -15,6 +15,12 @@
 //   volume 0..1, loop: false — once instead of looped, falloffMin — px of full volume around the
 //   object, falloffMax — px, silent from there on (0 or absent — the common AUDIO_FALLOFF_*).
 const LOCATION_OBJECTS = [
-    { name: 'mill', model: 'assets/models/mill.fbx', kind: 'prop', x: 1150.2, y: 894.4, h: 8.8, rot: [0, 34.4, 0], scale: [1.36, 1.36, 1.36], anim: { part: 'w1..003', axis: '-y', speed: 10, dir: 'ccw' }, sound: { src: 'assets/sounds/mill.mp3', volume: 0.25 } },
-    { name: 'character', model: 'assets/models/character.glb', kind: 'actor', x: 1029.4, y: 1010, h: 0, rot: [0, 60, 0], scale: [0.25, 0.25, 0.25], clip: 'idle', tag: 'player', sound: { src: 'assets/sounds/farmer.mp3', falloffMax: 512 } },
+    { name: 'Iron deposit 1', model: 'assets/models/mining-ore.glb', kind: 'prop', x: 1024, y: 1124, h: 0, rot: [0, 90, 0], scale: [0.5, 0.5, 0.5], tag: 'ore', materials: [{"slot":0,"color":"#c9c6dd","texture":"assets/Textures/kenney_prototype-textures/PNG/Dark/texture_08.png"}] },
+    { name: 'Iron deposit 2', model: 'assets/models/mining-ore.glb', kind: 'prop', x: 724, y: 1374, h: 0, rot: [0, 90, 0], scale: [0.5, 0.5, 0.5], tag: 'ore', materials: [{"slot":0,"texture":"assets/Textures/kenney_prototype-textures/PNG/Dark/texture_08.png"}] },
+    { name: 'Iron deposit 3', model: 'assets/models/mining-ore.glb', kind: 'prop', x: 1344, y: 1424, h: 0, rot: [0, 90, 0], scale: [0.5, 0.5, 0.5], tag: 'ore', materials: [{"slot":0,"texture":"assets/Textures/kenney_prototype-textures/PNG/Dark/texture_08.png"}] },
+    { name: 'Floor', model: 'assets/models/mining-box.glb', kind: 'prop', x: 1024, y: 1174, h: -20, rot: [0, 90, 0], scale: [17, 0.4, 18], tag: 'wall', materials: [{"slot":0,"color":"#ffffff","texture":"assets/Textures/kenney_prototype-textures/PNG/Dark/texture_08.png","uScale":5,"vScale":5}] },
+    { name: 'Back wall', model: 'assets/models/mining-box.glb', kind: 'prop', x: 1024, y: 2024, h: 200, rot: [0, 90, 0], scale: [0.4, 4, 18], tag: 'wall', materials: [{"slot":0,"texture":"assets/Textures/kenney_prototype-textures/PNG/Dark/texture_08.png","uScale":5}] },
+    { name: 'Left wall', model: 'assets/models/mining-box.glb', kind: 'prop', x: 124, y: 1174, h: 200, rot: [0, 90, 0], scale: [17, 4, 0.4], tag: 'wall', materials: [{"slot":0,"texture":"assets/Textures/kenney_prototype-textures/PNG/Dark/texture_08.png","uScale":4}] },
+    { name: 'Right wall', model: 'assets/models/mining-box.glb', kind: 'prop', x: 1924, y: 1174, h: 200, rot: [0, 90, 0], scale: [17, 4, 0.4], tag: 'wall', materials: [{"slot":0,"texture":"assets/Textures/kenney_prototype-textures/PNG/Dark/texture_08.png","uScale":4}] },
+    { name: 'Rear wall', model: 'assets/models/mining-box.glb', kind: 'prop', x: 1024, y: 324, h: 200, rot: [0, 90, 0], scale: [0.4, 4, 18], tag: 'wall', materials: [{"slot":0,"texture":"assets/Textures/kenney_prototype-textures/PNG/Dark/texture_08.png","uScale":5}] },
 ];

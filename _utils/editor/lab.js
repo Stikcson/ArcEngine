@@ -31,9 +31,11 @@ const Lab = {
             Toast.show(I18N.t('toast.no3d'), true);
             return;
         }
-        this.location = new Location3D({ assetBase: '/', showHidden: true, objects: ObjectsPanel.initialObjects() });
+        this.location = new Location3D({ assetBase: '/', showHidden: true, objects: ObjectsPanel.initialObjects(), terrainEnabled: ScenePanel.terrainEnabled });
+        SceneLighting.apply(this.location, LightingPanel.data, true);
+        this.setPlayerPreview(!!ScenePanel.active && ScenePanel.active.mode === 'mining');
         this.camera = new CameraController(this.location.view, {
-            terrain: this.location.terrain,
+            terrain: this.location.terrainEnabled ? this.location.terrain : null,
             bounds: { w: this.location.width, h: this.location.height },
             free: true
         });
@@ -43,10 +45,14 @@ const Lab = {
 
         this.bindUi();
         ObjectsPanel.init(this);
+        LightingPanel.init();
+        ContactShadowPanel.init();
+        PlayerPanel.init();
         UIPanel.init(this.canvas);
         SoundPanel.init();
         this.setCameraMode('free');
         this.camera.home();
+        this.impactPreview = new ImpactPreview(this);
         window.addEventListener('constants-changed', (e) => {
             const d = /** @type {CustomEvent} */ (e).detail;
             this.onConstant((d && d.name) || '');
@@ -55,7 +61,22 @@ const Lab = {
         requestAnimationFrame(t => this.tick(t));
     },
 
+    setPlayerPreview(enabled) {
+        if (this.playerPreview) { this.playerPreview.dispose(); this.playerPreview = null; }
+        if (enabled && this.location) {
+            this.playerPreview = new PlayerAvatar(this.location, {showBody:true,settings:PlayerPanel.data});
+            const s=PlayerPanel.data;
+            this.playerPreview.update(new BABYLON.Vector3(s.spawnX, s.spawnY+s.eyeHeight, s.spawnZ), 0);
+        }
+    },
+
     bindUi() {
+        document.getElementById('impact-preview-enabled').addEventListener('change', e => this.impactPreview.setEnabled(/** @type {HTMLInputElement} */ (e.target).checked));
+        document.getElementById('impact-preview-mode').addEventListener('change', e => { this.impactPreview.weak=/** @type {HTMLSelectElement} */ (e.target).value==='weak'; });
+        document.getElementById('impact-preview-place').addEventListener('click', () => {
+            if(!this.impactPreview.enabled){/** @type {HTMLInputElement} */ (document.getElementById('impact-preview-enabled')).checked=true;this.impactPreview.setEnabled(true);}
+            this.impactPreview.placeAtFocus();
+        });
         for (const btn of /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('#camera-modes button'))) {
             btn.addEventListener('click', () => this.setCameraMode(btn.dataset.camera));
         }
@@ -116,6 +137,7 @@ const Lab = {
 
     onConstant(name) {
         if (!this.location) return;
+        if (this.impactPreview && name.indexOf('MINING_') === 0) this.impactPreview.changed(name);
         if (name.indexOf('WORLD3D_') === 0) {
             this.location.applyRenderConstants();
             if (name === 'WORLD3D_TOON') this.syncToonToggle();
@@ -142,15 +164,22 @@ const Lab = {
         requestAnimationFrame(() => {
             this._terrainQueued = false;
             const terrain = this.location.buildTerrain();   // location objects settle onto the new ground on their own
-            this.camera.setTerrain(terrain, { w: this.location.width, h: this.location.height });
+            this.camera.setTerrain(this.location.terrainEnabled ? terrain : null, { w: this.location.width, h: this.location.height });
         });
     },
 
     tick(now) {
         const dt = Math.min(0.1, (now - (this._lastT || now)) / 1000);
         this._lastT = now;
-        this.location.update(dt);   // model part spin (def.anim) — as in the game
+        this.location.update(dt);
+        Surveillance.update(this.location,dt,[],true);   // editor-only cones and idle indicators
+        // model part spin (def.anim) — as in the game
+        if (this.playerPreview) {
+            const s=PlayerPanel.data;
+            this.playerPreview.update(new BABYLON.Vector3(s.spawnX, s.spawnY+s.eyeHeight, s.spawnZ), dt);
+        }
         this.camera.update(dt);
+        if (this.impactPreview) this.impactPreview.update(dt);
         ObjectsPanel.syncSpheres();    // the sound spheres follow the selected object
         Sound3D.update(this.camera);   // object sounds (def.sound) — as in the game
         World3D.renderFrame();

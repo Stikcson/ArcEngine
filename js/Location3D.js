@@ -15,8 +15,11 @@ class Location3D {
         this.opts = opts || {};
         this.view = World3D.createView({});
         this.terrain = null;
+        this.terrainEnabled = this.opts.terrainEnabled !== false;
         /** @type {LocationObject[]} */
         this.objects = [];   // { def, mesh, error, loaded } — see addObject
+        /** @type {Map<string, { texture: BABYLON.RawTexture, refs: number }>} */
+        this.blobTextures = new Map();
         this._groundImage = null;
         this._groundIndex = -1;
         this.buildTerrain();
@@ -38,8 +41,15 @@ class Location3D {
             worldH: this.height,
             groundImage: this._groundImage
         });
+        for (const mesh of this.terrain.meshes) mesh.setEnabled(this.terrainEnabled);
         this.placeObjects();
         return this.terrain;
+    }
+
+    setTerrainEnabled(enabled) {
+        this.terrainEnabled = !!enabled;
+        if (this.terrain) for (const mesh of this.terrain.meshes) mesh.setEnabled(this.terrainEnabled);
+        this.placeObjects();
     }
 
     // --- Location objects -----------------------------------------------------------
@@ -62,6 +72,7 @@ class Location3D {
             World3D.addObject(this.view, rec.mesh, def.kind);
             this.placeObject(rec);
             this.applyHidden(rec);
+            this.applyMaterials(rec);
             return rec;
         }).catch((e) => {
             rec.error = (e && e.message) || String(e);
@@ -82,7 +93,7 @@ class Location3D {
         const r = Array.isArray(d.rot) ? d.rot : [0, d.rot, 0];
         const s = Array.isArray(d.scale) ? d.scale : [d.scale, d.scale, d.scale];
         const k = (v) => (Number(v) > 0 ? Number(v) : 1);
-        m.position.set(x, (this.terrain ? this.terrain.heightAt(x, y) : 0) + (Number(d.h) || 0), y);
+        m.position.set(x, (this.terrainEnabled && this.terrain ? this.terrain.heightAt(x, y) : 0) + (Number(d.h) || 0), y);
         m.rotationQuaternion = null;   // a quaternion (the gizmo may set one) would override rotation
         m.rotation.set((Number(r[0]) || 0) * D, -(Number(r[1]) || 0) * D, (Number(r[2]) || 0) * D);
         m.scaling.set(k(s[0]), k(s[1]), k(s[2]));
@@ -118,6 +129,53 @@ class Location3D {
         for (const m of rec.mesh.getChildMeshes()) m.visibility = ghost ? Location3D.GHOST_ALPHA : 1;
     }
 
+    // One editable slot per distinct StandardMaterial, including FBX sub-materials.
+    // Every built model owns its materials, so an override never changes a neighbour.
+    /** @param {LocationObject} rec @returns {MaterialSlotState[]} */
+    materialSlots(rec) {
+        if (rec.materialSlots) return rec.materialSlots;
+        if (!rec.mesh) return [];
+        const slots = [], seen = new Set();
+        const collect = (mat) => {
+            if (!mat) return;
+            if (mat instanceof BABYLON.MultiMaterial) { for (const sub of mat.subMaterials) collect(sub); return; }
+            if (!(mat instanceof BABYLON.StandardMaterial) || seen.has(mat)) return;
+            seen.add(mat);
+            slots.push({ material:mat, originalColor:mat.diffuseColor.clone(), originalTexture:mat.diffuseTexture,
+                originalAlpha:mat.alpha, runtimeTexture:null, textureKey:'' });
+        };
+        collect(rec.mesh.material);
+        for (const mesh of rec.mesh.getChildMeshes(false)) collect(mesh.material);
+        return rec.materialSlots = slots;
+    }
+
+    /** @param {LocationObject} rec */
+    applyMaterials(rec) {
+        const slots = this.materialSlots(rec);
+        for (let i=0;i<slots.length;i++) {
+            const slot=slots[i], change=(rec.def.materials || []).find(x=>x.slot===i), mat=slot.material;
+            mat.diffuseColor = change && change.color ? BABYLON.Color3.FromHexString(change.color) : slot.originalColor.clone();
+            mat.alpha = change && change.alpha != null ? change.alpha : slot.originalAlpha;
+            const path=change && change.texture != null ? change.texture : null;
+            const original=/** @type {BABYLON.Texture | null} */ (slot.originalTexture);
+            const u=change && change.uScale != null ? change.uScale : (original ? original.uScale : 1);
+            const v=change && change.vScale != null ? change.vScale : (original ? original.vScale : 1);
+            const changedScale=!!original && (u!==original.uScale || v!==original.vScale);
+            const key=JSON.stringify([path,u,v]);
+            if (slot.textureKey === key) continue;
+            let next=slot.originalTexture, owned=null;
+            if (path === '') next=null;
+            else if (path != null) {
+                owned=new BABYLON.Texture((this.opts.assetBase || '')+path,this.view.scene);
+                next=owned;
+            } else if (changedScale) { owned=original.clone(); next=owned; }
+            if (owned) { const tex=/** @type {BABYLON.Texture} */ (owned);tex.uScale=u;tex.vScale=v; }
+            mat.diffuseTexture=next;
+            if (slot.runtimeTexture) slot.runtimeTexture.dispose();
+            slot.runtimeTexture=owned;slot.textureKey=key;
+        }
+    }
+
     // Object animation frame — before World3D.renderFrame().
     update(dt) {
         dt = Math.min(0.1, Math.max(0, dt || 0));
@@ -125,7 +183,84 @@ class Location3D {
             this.spinPart(rec, dt);
             this.playClip(rec);
             this.updateSound(rec);
+            this.updateBlob(rec, dt);
         }
+    }
+
+    // Props and actors get contact shadows unless explicitly disabled. Structural surfaces do not.
+    static blobSettings(def, config = null, ignoreMaster = false) {
+        const cfg = config || globalThis.CONTACT_SHADOW_CONFIG || { enabled: true, defaults: { sizeX: 150, opacity: 1, curve: [1, 0.86, 0.48, 0.12, 0] }, tags: [] };
+        const tag = String(def.tag || '').trim().toLowerCase();
+        const tagged = cfg.tags.find(item => item.tag.toLowerCase() === tag);
+        const base = Object.assign({ enabled: !['wall', 'floor', 'ground'].includes(tag) }, cfg.defaults, tagged || {}, def.blobShadow || {});
+        // Old scenes can contain an ellipse and non-zero curve endpoints. Preserve their
+        // editable settings while rendering a circle with an opaque center and clear edge.
+        return Object.assign({}, base, { enabled: !!base.enabled && (ignoreMaster || cfg.enabled), sizeZ: base.sizeX, curve: [1, base.curve[1], base.curve[2], base.curve[3], 0] });
+    }
+
+    // A tiny radial alpha texture, shared by every object with the same curve.
+    blobTexture(curve) {
+        const key = JSON.stringify(curve), cached = this.blobTextures.get(key);
+        if (cached) { cached.refs++; return { key, texture: cached.texture }; }
+        const size = 64, pixels = new Uint8Array(size * size * 4);
+        for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+            const radius = Math.hypot((x + 0.5) * 2 / size - 1, (y + 0.5) * 2 / size - 1);
+            const t = Math.min(1, radius) * 4, i = Math.min(3, Math.floor(t)), f = t - i;
+            const alpha = radius >= 1 ? 0 : curve[i] * (1 - f) + curve[i + 1] * f;
+            pixels[(y * size + x) * 4 + 3] = Math.round(Math.max(0, Math.min(1, alpha)) * 255);
+        }
+        const texture = BABYLON.RawTexture.CreateRGBATexture(pixels, size, size, this.view.scene, false, false, BABYLON.Texture.BILINEAR_SAMPLINGMODE);
+        texture.hasAlpha = true;
+        this.blobTextures.set(key, { texture, refs: 1 });
+        return { key, texture };
+    }
+
+    releaseBlobTexture(key) {
+        const entry = this.blobTextures.get(key);
+        if (entry && --entry.refs === 0) { entry.texture.dispose(); this.blobTextures.delete(key); }
+    }
+
+    removeBlob(rec) {
+        const b = rec.blob;
+        if (!b) return;
+        b.mesh.dispose(); b.material.dispose(); this.releaseBlobTexture(b.textureKey); delete rec.blob;
+    }
+
+    updateBlob(rec, dt) {
+        const settings = Location3D.blobSettings(rec.def), root = rec.mesh;
+        if (!settings.enabled || !root) { this.removeBlob(rec); return; }
+        let b = rec.blob;
+        if (!b) {
+            const mesh = BABYLON.MeshBuilder.CreateGround('contact-shadow', { width: 1, height: 1 }, this.view.scene);
+            const material = new BABYLON.StandardMaterial('contact-shadow', this.view.scene);
+            material.disableLighting = true; material.diffuseColor = BABYLON.Color3.Black();
+            material.specularColor = BABYLON.Color3.Black(); material.backFaceCulling = false;
+            material.disableDepthWrite = true; material.useAlphaFromDiffuseTexture = true;
+            mesh.material = material; mesh.isPickable = false; mesh.receiveShadows = false;
+            b = rec.blob = { mesh, material, textureKey: '', groundY: null, groundKey: '', groundTimer: 0 };
+        }
+        const key = JSON.stringify(settings.curve);
+        if (key !== b.textureKey) {
+            const next = this.blobTexture(settings.curve);
+            b.material.diffuseTexture = next.texture;
+            if (b.textureKey) this.releaseBlobTexture(b.textureKey);
+            b.textureKey = next.key;
+        }
+        b.material.alpha = settings.opacity;
+        b.mesh.scaling.set(settings.sizeX, 1, settings.sizeX);
+        const p = root.getAbsolutePosition(), groundKey = [p.x, p.y, p.z, this.terrainEnabled].join(',');
+        b.groundTimer -= dt;
+        if (groundKey !== b.groundKey || b.groundTimer <= 0) {
+            b.groundKey = groundKey; b.groundTimer = 0.75;
+            if (this.terrainEnabled && this.terrain) b.groundY = this.terrain.heightAt(p.x, p.z);
+            else {
+                const ray = new BABYLON.Ray(new BABYLON.Vector3(p.x, p.y + 5, p.z), new BABYLON.Vector3(0, -1, 0), 10000);
+                const hit = this.view.scene.pickWithRay(ray, m => m.isPickable && m.isEnabled() && m !== root && !m.isDescendantOf(root));
+                b.groundY = hit && hit.hit && hit.pickedPoint ? hit.pickedPoint.y : null;
+            }
+        }
+        b.mesh.setEnabled(root.isEnabled() && !rec.def.hidden && b.groundY != null);
+        if (b.groundY != null) b.mesh.position.set(p.x, b.groundY + 0.25, p.z);
     }
 
     // def.sound = { src, volume?, loop?, falloffMin?, falloffMax? }: a sound standing at the object
@@ -201,9 +336,12 @@ class Location3D {
     removeObject(rec) {
         const i = this.objects.indexOf(rec);
         if (i >= 0) this.objects.splice(i, 1);
+        if (rec.blob) this.removeBlob(rec);
         if (rec.sound) rec.sound.stop();
         rec.sound = null;
         rec.soundKey = '';
+        if (rec.materialSlots) for (const slot of rec.materialSlots) if (slot.runtimeTexture) slot.runtimeTexture.dispose();
+        rec.materialSlots = null;
         if (rec.mesh && this.view) Model3D.dispose(this.view, rec.mesh);
         rec.mesh = null;
     }

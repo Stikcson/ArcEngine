@@ -1,0 +1,235 @@
+{
+  "version": 1,
+  "id": "mining",
+  "name": "Mining Test",
+  "mode": "mining",
+  "objects": [
+    {
+      "name": "Iron deposit 1",
+      "model": "assets/models/mining-ore.glb",
+      "kind": "prop",
+      "x": 1024,
+      "y": 1124,
+      "h": 0,
+      "rot": [
+        0,
+        90,
+        0
+      ],
+      "scale": [
+        0.5,
+        0.5,
+        0.5
+      ],
+      "tag": "ore",
+      "materials": [
+        {
+          "slot": 0,
+          "color": "#c9c6dd",
+          "texture": "assets/Textures/kenney_prototype-textures/PNG/Dark/texture_08.png"
+        }
+      ]
+    },
+    {
+      "name": "Iron deposit 2",
+      "model": "assets/models/mining-ore.glb",
+      "kind": "prop",
+      "x": 724,
+      "y": 1374,
+      "h": 0,
+      "rot": [
+        0,
+        90,
+        0
+      ],
+      "scale": [
+        0.5,
+        0.5,
+        0.5
+      ],
+      "tag": "ore",
+      "materials": [
+        {
+          "slot": 0,
+          "texture": "assets/Textures/kenney_prototype-textures/PNG/Dark/texture_08.png"
+        }
+      ]
+    },
+    {
+      "name": "Iron deposit 3",
+      "model": "assets/models/mining-ore.glb",
+      "kind": "prop",
+      "x": 1344,
+      "y": 1424,
+      "h": 0,
+      "rot": [
+        0,
+        90,
+        0
+      ],
+      "scale": [
+        0.5,
+        0.5,
+        0.5
+      ],
+      "tag": "ore",
+      "materials": [
+        {
+          "slot": 0,
+          "texture": "assets/Textures/kenney_prototype-textures/PNG/Dark/texture_08.png"
+        }
+      ]
+    },
+    {
+      "name": "Floor",
+      "model": "assets/models/mining-box.glb",
+      "kind": "prop",
+      "x": 1024,
+      "y": 1174,
+      "h": -20,
+      "rot": [
+        0,
+        90,
+        0
+      ],
+      "scale": [
+        17,
+        0.4,
+        18
+      ],
+      "tag": "wall",
+      "materials": [
+        {
+          "slot": 0,
+          "color": "#ffffff",
+          "texture": "assets/Textures/kenney_prototype-textures/PNG/Dark/texture_08.png",
+          "uScale": 5,
+          "vScale": 5
+        }
+      ]
+    },
+    {
+      "name": "Back wall",
+      "model": "assets/models/mining-box.glb",
+      "kind": "prop",
+      "x": 1024,
+      "y": 2024,
+      "h": 200,
+      "rot": [
+        0,
+        90,
+        0
+      ],
+      "scale": [
+        0.4,
+        4,
+        18
+      ],
+      "tag": "wall",
+      "materials": [
+        {
+          "slot": 0,
+          "texture": "assets/Textures/kenney_prototype-textures/PNG/Dark/texture_08.png",
+          "uScale": 5
+        }
+      ]
+    },
+    {
+      "name": "Left wall",
+      "model": "assets/models/mining-box.glb",
+      "kind": "prop",
+      "x": 124,
+      "y": 1174,
+      "h": 200,
+      "rot": [
+        0,
+        90,
+        0
+      ],
+      "scale": [
+        17,
+        4,
+        0.4
+      ],
+      "tag": "wall",
+      "materials": [
+        {
+          "slot": 0,
+          "texture": "assets/Textures/kenney_prototype-textures/PNG/Dark/texture_08.png",
+          "uScale": 4
+        }
+      ]
+    },
+    {
+      "name": "Right wall",
+      "model": "assets/models/mining-box.glb",
+      "kind": "prop",
+      "x": 1924,
+      "y": 1174,
+      "h": 200,
+      "rot": [
+        0,
+        90,
+        0
+      ],
+      "scale": [
+        17,
+        4,
+        0.4
+      ],
+      "tag": "wall",
+      "materials": [
+        {
+          "slot": 0,
+          "texture": "assets/Textures/kenney_prototype-textures/PNG/Dark/texture_08.png",
+          "uScale": 4
+        }
+      ],
+      "blobShadow": {
+        "enabled": true,
+        "sizeX": 300,
+        "sizeZ": 150,
+        "opacity": 0,
+        "curve": [
+          1,
+          0.98,
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "name": "Rear wall",
+      "model": "assets/models/mining-box.glb",
+      "kind": "prop",
+      "x": 1024,
+      "y": 324,
+      "h": 200,
+      "rot": [
+        0,
+        90,
+        0
+      ],
+      "scale": [
+        0.4,
+        4,
+        18
+      ],
+      "tag": "wall",
+      "materials": [
+        {
+          "slot": 0,
+          "texture": "assets/Textures/kenney_prototype-textures/PNG/Dark/texture_08.png",
+          "uScale": 5
+        }
+      ]
+    }
+  ],
+  "terrainEnabled": false,
+  "lighting": {
+    "sun": false,
+    "sky": true,
+    "points": []
+  }
+}

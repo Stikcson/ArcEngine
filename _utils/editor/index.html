@@ -26,12 +26,29 @@
         <!-- LEFT PANE: the location in 3D -->
         <section id="view-pane">
             <div id="view-toolbar">
+                <div class="toolbar-group" id="scene-toolbar">
+                    <label for="scene-select" data-i18n="scene.label">Scene</label>
+                    <select id="scene-select" data-i18n-title="scene.selectHint"></select>
+                    <button id="scene-create" data-i18n="scene.create" data-i18n-title="scene.createHint">New scene</button>
+                    <button id="scene-duplicate" data-i18n="scene.duplicate" data-i18n-title="scene.duplicateHint">Duplicate</button>
+                    <button id="scene-import" data-i18n="scene.import" data-i18n-title="scene.importHint">Import previous</button>
+                    <label data-i18n-title="scene.terrainHint"><input type="checkbox" id="scene-terrain"> <span data-i18n="scene.terrain">Terrain</span></label>
+                    <button id="scene-play" data-i18n="scene.play" data-i18n-title="scene.playHint">Play scene</button>
+                </div>
                 <div class="mode-tabs" id="camera-modes">
                     <button data-camera="free" data-i18n="cam.free" data-i18n-title="cam.freeTitle">Free camera</button>
                     <button data-camera="game" data-i18n="cam.game" data-i18n-title="cam.gameTitle">Game camera</button>
                 </div>
                 <div class="toolbar-group">
                     <button id="btn-home" data-i18n="cam.home" data-i18n-title="cam.homeTitle">↺ Reset camera</button>
+                </div>
+                <div class="toolbar-group">
+                    <label data-i18n-title="impact.previewTitle"><input type="checkbox" id="impact-preview-enabled" checked> <span data-i18n="impact.preview">Impact preview</span></label>
+                    <select id="impact-preview-mode" data-i18n-title="impact.modeTitle" aria-label="Impact type">
+                        <option value="normal" data-i18n="impact.normal">Normal hit</option>
+                        <option value="weak" data-i18n="impact.weak">Weak point</option>
+                    </select>
+                    <button id="impact-preview-place" data-i18n="impact.place" data-i18n-title="impact.placeTitle">Place at view center</button>
                 </div>
                 <div class="mode-tabs" id="gizmo-modes">
                     <button data-gizmo="move" data-i18n-title="gizmo.moveTitle">✥ <span data-i18n="gizmo.move">Move</span></button>
@@ -74,6 +91,7 @@
             <div id="pane-tabs" class="mode-tabs">
                 <button data-tab="settings" data-i18n="tab.settings">Global Settings</button>
                 <button data-tab="objects" data-i18n="tab.objects">Objects</button>
+                <button data-tab="player" data-i18n="tab.player">Player</button>
                 <button data-tab="ui" data-i18n="tab.ui">UI</button>
                 <button data-tab="sound" data-i18n="tab.sound">Sound</button>
             </div>
@@ -95,6 +113,7 @@
 
             <section class="pane-panel" data-tab="objects" hidden>
                 <div id="objects-header">
+                    <button id="btn-add-camera" data-i18n="sensor.add">Add camera</button>
                     <button id="btn-import" data-i18n-title="obj.importTitle">Import model…</button>
                     <div id="objects-actions">
                         <button id="btn-objects-save" disabled data-i18n="obj.save">Save to Objects.js</button>
@@ -117,6 +136,10 @@
                 <div id="ui-list"></div>
                 <div id="ui-props"></div>
                 <div id="ui-footer" data-i18n="ui.footer">Drag an element in the view, resize it by the handles. Arrows nudge by 1 px, Shift — by 10.</div>
+            </section>
+
+            <section class="pane-panel" data-tab="player" hidden>
+                <div id="player-panel"></div>
             </section>
 
             <section class="pane-panel" data-tab="sound" hidden>
@@ -179,13 +202,23 @@
     <script src="/js/Gltf3D.js"></script>
     <script src="/js/Instances3D.js"></script>
     <script src="/js/Location3D.js"></script>
+    <script src="/js/ContactShadowConfig.js"></script>
+    <script src="/js/PlayerAvatar.js"></script>
+    <script src="/js/Surveillance.js"></script>
+    <script src="/js/SceneLighting.js"></script>
     <script src="/js/Debug3D.js"></script>
     <script src="/js/UI.js"></script>
+    <script src="/js/Game.js"></script>
     <script src="./history.js"></script>
     <script src="./inspector.js"></script>
+    <script src="./lighting-panel.js"></script>
+    <script src="./player-panel.js"></script>
+    <script src="./contact-shadow-panel.js"></script>
+    <script src="./scene-panel.js"></script>
     <script src="./objects-panel.js"></script>
     <script src="./sound-panel.js"></script>
     <script src="./ui-panel.js"></script>
+    <script src="./impact-preview.js"></script>
     <script src="./lab.js"></script>
     <script src="./debug-tools.js"></script>
     <script src="./onboarding.js"></script>

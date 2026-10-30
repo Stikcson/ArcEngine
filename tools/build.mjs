@@ -80,6 +80,9 @@ async function main() {
   // === 1. CHECKS ===========================================================
   say(C.b + '  [1/4] проверка проекта' + C.r);
   const scan = await collectRefs(ROOT);
+  const sceneFiles=(await fsp.readdir(path.join(ROOT,'scenes')).catch(()=>[]))
+    .filter(n=>/^[a-z][a-z0-9_-]{0,47}\.json$/.test(n)).map(n=>'scenes/'+n);
+  if(!sceneFiles.includes('scenes/main.json'))fail('нет основной сцены scenes/main.json');
 
   // 1a. missing assets — 404 at runtime
   if (scan.missing.length) {
@@ -130,7 +133,7 @@ async function main() {
   if (externals.length) fail('внешние скрипты: ' + externals.join(', '));
 
   // 1g. file names: ASCII only, no spaces
-  const badNames = [...CODE_FILES, ...scan.refs].filter(n => !SAFE_NAME.test(n));
+  const badNames = [...CODE_FILES, ...sceneFiles, ...scan.refs].filter(n => !SAFE_NAME.test(n));
   if (badNames.length) {
     fail('недопустимые имена (пробелы/кириллица/юникод): ' + badNames.join(', '));
   } else {
@@ -208,7 +211,7 @@ async function main() {
   const assetList = KEEP_UNUSED ? scan.onDisk : scan.refs.filter(r => !scan.missing.includes(r));
   const manifest = [];
 
-  for (const rel of [...CODE_FILES, ...assetList]) {
+  for (const rel of [...CODE_FILES, ...sceneFiles, ...assetList]) {
     const src = path.join(ROOT, rel);
     let data;
     try { data = await fsp.readFile(src); } catch { continue; }

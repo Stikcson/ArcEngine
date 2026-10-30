@@ -6,6 +6,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     I18N.init();
     try {
         await EditorLoader.load();
+        await ScenePanel.init();
+        await ContactShadowPanel.load();
         EditHistory.init();
         PaneTabs.init();
         Inspector.init();

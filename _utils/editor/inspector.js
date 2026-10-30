@@ -51,7 +51,7 @@ const Inspector = {
         for (const btn of this.buttons('revert')) btn.addEventListener('click', () => this.revertAll());
         document.getElementById('inspector-search').addEventListener('input', e => this.filter(/** @type {HTMLInputElement} */ (e.target).value));
         window.addEventListener('keydown', e => {
-            if ((e.ctrlKey || e.metaKey) && e.code === 'KeyS') { e.preventDefault(); this.save(); }
+            if ((e.ctrlKey || e.metaKey) && e.code === 'KeyS') { e.preventDefault(); if (PaneTabs.current === 'player') PlayerPanel.save(); else this.save(); }
         });
         window.addEventListener('lang-changed', () => {
             this.build();
@@ -127,6 +127,11 @@ const Inspector = {
             const body = document.createElement('div');
             body.className = 'group-body';
             for (const f of group.fields) body.appendChild(this.buildFieldRow(f));
+            if (group.id === 'sun') {
+                const light = document.createElement('div'); light.id = 'lighting-panel';
+                const shadow = document.createElement('div'); shadow.id = 'contact-shadow-panel';
+                body.prepend(light); body.appendChild(shadow);
+            }
             box.appendChild(body);
             host.appendChild(box);
         }
@@ -258,7 +263,7 @@ const Inspector = {
     },
 
     refreshSaveButton() {
-        const dirty = this.dirtyList(), n = dirty.length;
+        const dirty = this.dirtyList(), shadowDirty = ContactShadowPanel.isDirty(), lightDirty = LightingPanel.isDirty(), n = dirty.length + (shadowDirty ? 1 : 0) + (lightDirty ? 1 : 0);
         for (const btn of this.buttons('save')) {
             btn.textContent = n ? I18N.t('insp.saveN', { n }) : I18N.t('insp.save');
             btn.disabled = n === 0;
@@ -267,12 +272,14 @@ const Inspector = {
         // A dirty mark on the tab that holds the changed constants, like the Objects and UI tabs.
         for (const tab of ['settings', 'sound']) {
             const el = document.querySelector('#pane-tabs [data-tab="' + tab + '"]');
-            if (el) el.classList.toggle('dirty', dirty.some(name => this.tabOf[name] === tab));
+            if (el) el.classList.toggle('dirty', dirty.some(name => this.tabOf[name] === tab) || (tab === 'settings' && (shadowDirty || lightDirty)));
         }
     },
 
     revertAll() {
         for (const name of this.dirtyList()) this.apply(this.fieldByName[name], this.originals[name]);
+        if (ContactShadowPanel.isDirty()) ContactShadowPanel.revert();
+        if (LightingPanel.isDirty()) LightingPanel.revert();
         Toast.show(I18N.t('toast.reverted'));
     },
 
@@ -280,11 +287,13 @@ const Inspector = {
 
     async save() {
         const dirty = this.dirtyList();
-        if (!dirty.length) return;
+        const shadowDirty = ContactShadowPanel.isDirty(), lightDirty = LightingPanel.isDirty();
+        if (!dirty.length && !shadowDirty && !lightDirty) return;
         if (!this.saveAvailable) {
             Toast.show(I18N.t('toast.noSave'), true);
             return;
         }
+        if (!dirty.length) { if (shadowDirty) await ContactShadowPanel.save(); if (lightDirty) await LightingPanel.save(); return; }
         const changes = dirty.map(name => ({ name, value: this.get(name) }));
         try {
             const r = await fetch('/api/save-constants', {
@@ -310,6 +319,8 @@ const Inspector = {
             } else {
                 Toast.show(I18N.t('toast.saved', { n: j.patched, backup: j.backup }));
             }
+            if (shadowDirty) await ContactShadowPanel.save();
+            if (lightDirty) await LightingPanel.save();
         } catch (e) {
             Toast.show(I18N.t('toast.saveError', { msg: e.message }), true);
         }

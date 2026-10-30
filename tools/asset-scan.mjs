@@ -22,7 +22,7 @@ export const EXTRA_REFS = [];
 // index.html = a new line here, otherwise the file will not get into the archive.
 export const CODE_FILES = [
   'index.html',
-  'js/Constants.js', 'js/Objects.js', 'js/UILayout.js', 'js/Sound3D.js', 'js/World3D.js', 'js/Terrain3D.js', 'js/CameraControl.js', 'js/Model3D.js', 'js/Gltf3D.js', 'js/Instances3D.js', 'js/Location3D.js', 'js/Debug3D.js', 'js/UI.js', 'js/Game.js', 'js/main.js',
+  'js/Constants.js', 'js/Objects.js', 'js/SceneData.js', 'js/SceneLighting.js', 'js/UILayout.js', 'js/Sound3D.js', 'js/World3D.js', 'js/Terrain3D.js', 'js/CameraControl.js', 'js/Model3D.js', 'js/Gltf3D.js', 'js/Instances3D.js', 'js/Location3D.js', 'js/ContactShadowConfig.js', 'js/PlayerAvatar.js', 'js/Surveillance.js', 'js/Debug3D.js', 'js/UI.js', 'js/Game.js', 'js/main.js',
   'libs/simplex-noise.js', 'libs/babylon.js', 'libs/babylonjs.loaders.min.js',
 ];
 
@@ -58,7 +58,7 @@ export async function collectRefs(root) {
   const refs = new Set(EXTRA_REFS);
   const rx = /['"`]\s*(assets\/[^'"`)\s]+?)\s*['"`)]/g;
   for (const rel of all) {
-    if (!SCAN_EXT.has(path.extname(rel).toLowerCase())) continue;
+    if (!SCAN_EXT.has(path.extname(rel).toLowerCase()) && !(rel.startsWith('scenes/') && rel.endsWith('.json'))) continue;
     if (rel.startsWith('libs/')) continue;           // third-party libraries are left alone
     const text = await fsp.readFile(path.join(root, rel), 'utf8');
     for (const m of text.matchAll(rx)) {

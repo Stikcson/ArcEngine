@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "id": "main",
+  "name": "Main Scene",
+  "mode": "assembly",
+  "objects": [],
+  "terrainEnabled": true,
+  "lighting": {
+    "sun": false,
+    "sky": true,
+    "points": []
+  }
+}

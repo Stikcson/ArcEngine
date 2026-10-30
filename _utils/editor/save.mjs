@@ -44,6 +44,8 @@ export const isModelPath = p => MODEL_PATH.test(p) && !p.split('/').some(s => s 
 // Sound path: the same rules, a .wav, .mp3 or .ogg.
 const SOUND_PATH = /^assets[/](?:[A-Za-z0-9_.-]+[/])*[A-Za-z0-9_.-]+[.](?:wav|mp3|ogg)$/i;
 export const isSoundPath = p => SOUND_PATH.test(p) && !p.split('/').some(s => s === '.' || s === '..');
+const IMAGE_PATH = /^assets[/](?:[A-Za-z0-9_.-]+[/])*[A-Za-z0-9_.-]+[.](?:png|jpe?g|webp)$/i;
+export const isImagePath = p => IMAGE_PATH.test(p) && !p.split('/').some(s => s === '.' || s === '..');
 
 // --- Backups -----------------------------------------------------------------
 
@@ -207,6 +209,51 @@ function fmtSound(s) {
   return `, sound: { ${parts.join(', ')} }`;
 }
 
+// Each slot keeps only explicit overrides. Strings are JSON-escaped, including paths.
+function fmtMaterials(items) {
+  if (items == null) return '';
+  if (!Array.isArray(items) || items.length > 128) return null;
+  const seen=new Set(), result=[];
+  for (const item of items) {
+    if (!item || !Number.isInteger(item.slot) || item.slot < 0 || item.slot > 127 || seen.has(item.slot)) return null;
+    seen.add(item.slot);
+    const out={slot:item.slot};
+    if (item.color != null) {
+      if (typeof item.color !== 'string' || !/^#[0-9a-f]{6}$/i.test(item.color)) return null;
+      out.color=item.color.toLowerCase();
+    }
+    if (item.texture != null) {
+      if (typeof item.texture !== 'string' || (item.texture !== '' && !isImagePath(item.texture))) return null;
+      out.texture=item.texture;
+    }
+    for (const key of ['uScale','vScale','alpha']) if (item[key] != null) {
+      const n=Number(item[key]);
+      const rounded=Number(n.toFixed(3));
+      if (!Number.isFinite(n) || (key==='alpha' ? (n<0 || n>1) : (rounded<=0 || n>100))) return null;
+      out[key]=rounded;
+    }
+    if (Object.keys(out).length > 1) result.push(out);
+  }
+  return result.length ? ', materials: ' + JSON.stringify(result) : '';
+}
+
+function fmtBlobShadow(s) {
+  if (s == null) return '';
+  if (typeof s !== 'object' || Array.isArray(s) || typeof s.enabled !== 'boolean' ||
+      !Array.isArray(s.curve) || s.curve.length !== 5) return null;
+  if (![s.sizeX, s.sizeZ, s.opacity, ...s.curve].every(n => typeof n === 'number' && Number.isFinite(n))) return null;
+  if (s.sizeX < 1 || s.sizeX > 10000 || s.sizeZ < 1 || s.sizeZ > 10000 ||
+      s.opacity < 0 || s.opacity > 1 || s.curve.some(n => n < 0 || n > 1)) return null;
+  const round = n => Number(n.toFixed(2));
+  return ', blobShadow: ' + JSON.stringify({ enabled:s.enabled, sizeX:round(s.sizeX), sizeZ:round(s.sizeZ), opacity:round(s.opacity), curve:s.curve.map(round) });
+}
+
+function fmtSensor(s) {
+  if (s == null) return '';
+  if (!s || typeof s !== 'object' || !Number.isFinite(s.distance) || !Number.isFinite(s.radius) || s.distance<10 || s.distance>10000 || s.radius<1 || s.radius>10000) return null;
+  return ', sensor: ' + JSON.stringify({distance:Number(s.distance.toFixed(1)),radius:Number(s.radius.toFixed(1))});
+}
+
 // objects: [{ name, model, kind, x, y, h, rot: [x, y, z], scale: [x, y, z], anim?, clip?, tag?, hidden?, sound? }] ->
 // { ok, src, count } or a rejection (index — the number of the invalid record).
 export function formatObjects(objects) {
@@ -222,10 +269,13 @@ export function formatObjects(objects) {
       scale: fmtTriple(o.scale, 3, s => [s, s, s], true),
       anim: fmtAnim(o.anim),
       sound: fmtSound(o.sound),
+      materials: fmtMaterials(o.materials),
+      blobShadow: fmtBlobShadow(o.blobShadow),
+      sensor: fmtSensor(o.sensor),
     };
     if (Object.values(n).includes(null)) return failure('bad_value', { index: i });
     const kind = o.kind === 'actor' ? 'actor' : 'prop';
-    lines.push(`    { name: '${cleanName(o.name)}', model: '${model}', kind: '${kind}', x: ${n.x}, y: ${n.y}, h: ${n.h}, rot: ${n.rot}, scale: ${n.scale}${n.anim}${fmtClip(o.clip)}${fmtTag(o.tag)}${o.hidden ? ', hidden: true' : ''}${n.sound} },\n`);
+    lines.push(`    { name: '${cleanName(o.name)}', model: '${model}', kind: '${kind}', x: ${n.x}, y: ${n.y}, h: ${n.h}, rot: ${n.rot}, scale: ${n.scale}${n.anim}${fmtClip(o.clip)}${fmtTag(o.tag)}${o.hidden ? ', hidden: true' : ''}${n.sound}${n.materials}${n.blobShadow}${n.sensor} },\n`);
   }
   return { ok: true, src: OBJECTS_HEADER + 'const LOCATION_OBJECTS = [\n' + lines.join('') + '];\n', count: lines.length };
 }

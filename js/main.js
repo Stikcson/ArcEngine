@@ -22,22 +22,28 @@ function showBootError(text) {
     if (el) el.textContent = text;
 }
 
-function startGame() {
+async function startGame() {
     if (window.app) return;                 // guard against a repeated start
     if (typeof SimplexNoise === 'undefined') { showBootError('Нет libs/simplex-noise.js'); return; }
+    let sceneData;
+    try { sceneData=await SceneData.load(SceneData.selected()); }
+    catch(e) { showBootError('Не удалось загрузить сцену: '+e.message);return; }
     const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById('world3d'));
     updateLoadingProgress(40);
     if (!World3D.init(canvas)) { showBootError('3D недоступен: нет libs/babylon.js или WebGL'); return; }
 
-    const location = new Location3D({ objects: typeof LOCATION_OBJECTS !== 'undefined' ? LOCATION_OBJECTS : [] });
+    const terrainEnabled = typeof sceneData.terrainEnabled === 'boolean' ? sceneData.terrainEnabled : sceneData.mode !== 'mining';
+    const location = new Location3D({ objects: sceneData.objects, terrainEnabled });
+    SceneLighting.apply(location, sceneData.lighting);
     const camera = new CameraController(location.view, {
-        terrain: location.terrain,
+        terrain: terrainEnabled ? location.terrain : null,
         bounds: { w: location.width, h: location.height }
     });
-    camera.attach(canvas);
-    UI.init(canvas);
+    // The mining game owns first-person input; the editor retains its own camera.
+    if(sceneData.mode==='assembly')camera.attach(canvas);
+    UI.init(canvas,sceneData.mode==='mining'?undefined:[]);
     window.app = { location, camera, game: null };
-    const game = window.app.game = new Game(window.app);
+    const game = sceneData.mode==='mining' ? window.app.game = new Game(window.app, sceneData.player) : null;
     console.log('ArcEngine: локация запущена, объектов ' + location.objects.length + '.');
     updateLoadingProgress(70);
 
@@ -45,9 +51,9 @@ function startGame() {
     World3D.engine.runRenderLoop(() => {
         const now = performance.now(), dt = (now - last) / 1000;
         last = now;
-        game.update(Math.min(0.1, dt));
+        if(game)game.update(Math.min(0.1, dt));else camera.update(Math.min(0.1,dt));
         location.update(dt);
-        camera.update(dt);
+        Surveillance.update(location,dt,game ? [{id:"player",position:game.position}] : [],false);
         Sound3D.update(camera);
         World3D.renderFrame();
     });

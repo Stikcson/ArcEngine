@@ -1,0 +1,14 @@
+import fs from 'node:fs';
+import vm from 'node:vm';
+import { formatUI, formatObjects } from '../_utils/editor/save.mjs';
+const file = new URL('../js/UILayout.js', import.meta.url);
+const source = fs.readFileSync(file, 'utf8');
+const layout = vm.runInNewContext(source + '\n;UI_LAYOUT');
+const result = formatUI(layout);
+if (!result.ok) throw new Error(JSON.stringify(result));
+fs.writeFileSync(file, result.src);
+const objectsFile = new URL('../js/Objects.js', import.meta.url);
+const objects = vm.runInNewContext(fs.readFileSync(objectsFile, 'utf8') + '\n;LOCATION_OBJECTS');
+const objectResult = formatObjects(objects);
+if (!objectResult.ok) throw new Error(JSON.stringify(objectResult));
+fs.writeFileSync(objectsFile, objectResult.src);

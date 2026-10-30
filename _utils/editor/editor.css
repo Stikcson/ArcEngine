@@ -95,6 +95,8 @@ main { flex: 1 1 auto; display: flex; min-height: 0; }
     font-size: 12.5px;
     cursor: pointer;
 }
+#scene-select { max-width: 220px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 5px; padding: 5px 7px; }
+#scene-toolbar { flex-wrap: wrap; }
 .toolbar-spacer { flex: 1 1 0; }
 
 #view-wrap { flex: 1 1 auto; min-height: 0; position: relative; overflow: hidden; background: #171b21; }
@@ -236,6 +238,10 @@ main { flex: 1 1 auto; display: flex; min-height: 0; }
 #object-props { flex: 1 1 auto; overflow-y: auto; padding: 8px 14px 16px; }
 .objects-empty { color: var(--muted); padding: 10px 14px; font-size: 12.5px; }
 #object-props .objects-empty { padding: 4px 0; }
+.material-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
+.material-title button { flex: 0 0 auto; background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; cursor: pointer; }
+.material-preview { display: block; width: 72px; height: 72px; object-fit: contain; border: 1px solid var(--line); border-radius: 4px; margin: 8px 0; }
+.material-note { color: var(--muted); font-size: 12px; line-height: 1.4; margin-top: 8px; }
 
 .field-controls input[type="text"] {
     flex: 1 1 auto;
@@ -600,3 +606,25 @@ main { flex: 1 1 auto; display: flex; min-height: 0; }
 .onb-hero-mark { font-size: 26px; font-weight: 800; letter-spacing: 4px; }
 .onb-hero-arc { color: #fbcb60; }
 .onb-hero-tag { margin-top: 7px; color: var(--accent); font-size: 12.5px; letter-spacing: 1px; }
+#lighting-panel { padding: 8px 0; border-bottom: 1px solid var(--line); }
+#lighting-panel p { color: var(--muted); margin: 6px 0; }
+#lighting-panel .field { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0; }
+#lighting-panel .field input { width: 120px; max-width: 60%; }
+#lighting-panel .props-section { margin-top: 8px; }
+#contact-shadow-panel { padding: 8px 0; border-top: 1px solid var(--line); }
+#contact-shadow-panel p { color: var(--muted); margin: 6px 0; }
+#contact-shadow-panel label.field { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0; }
+#contact-shadow-panel label.field input { width: 120px; max-width: 60%; }
+.contact-tag-add { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0; }
+.contact-tag-add input { min-width: 90px; flex: 1; }
+.blob-curve { width: 100%; }
+.blob-curve svg { display: block; width: 100%; height: 110px; background: #20252d; border: 1px solid #4e5867; border-radius: 4px; touch-action: none; cursor: crosshair; }
+.blob-curve polyline { fill: none; stroke: #80baff; stroke-width: 2; }
+.blob-curve circle { fill: #c7e1ff; stroke: #3679c5; stroke-width: 2; }
+.blob-sliders { display: flex; gap: 3px; margin-top: 5px; }
+.blob-sliders input { min-width: 0; width: 20%; }
+#player-panel { flex: 1 1 auto; overflow-y: auto; padding: 10px 14px 24px; }
+#player-panel p { color: var(--muted); margin: 8px 0; }
+#player-panel label.field { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+#player-panel label.field input { width: 125px; max-width: 50%; }
+#player-panel .player-actions { display: flex; gap: 6px; margin-bottom: 8px; }

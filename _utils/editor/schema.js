@@ -15,7 +15,7 @@
 // The server contract version this client expects. Must match
 // EDITOR_API_VERSION in server.mjs — otherwise the editor warns that editor.bat
 // is running old code (Node reads server files only at process start).
-const EDITOR_API_VERSION = 20;
+const EDITOR_API_VERSION = 28;
 
 // Ink edges and outline levels: 0 — off, 1 — main objects (actor), 2 — and environment (prop).
 const SCHEMA_LEVELS = [
@@ -29,6 +29,114 @@ const SCHEMA_NO_YES = [
 ];
 
 const KIT_SCHEMA = [
+    {
+        id: 'post-processing',
+        label: { en: 'Post-processing', ru: 'Постобработка' },
+        fields: [
+            { name: 'WORLD3D_POST_ENABLED', kind: 'select', options: SCHEMA_NO_YES, label: { en: 'Post-processing enabled', ru: 'Постобработка включена' } },
+            { name: 'WORLD3D_POST_VIGNETTE', kind: 'select', options: SCHEMA_NO_YES, label: { en: 'Vignette', ru: 'Виньетка' } },
+            { name: 'WORLD3D_POST_VIGNETTE_WEIGHT', min: 0, max: 4, step: 0.05, label: { en: 'Vignette strength', ru: 'Сила виньетки' } },
+            { name: 'WORLD3D_POST_VIGNETTE_STRETCH', min: 0, max: 1, step: 0.05, label: { en: 'Vignette stretch', ru: 'Растяжение виньетки' } },
+            { name: 'WORLD3D_POST_EXPOSURE', min: 0, max: 2, step: 0.05, label: { en: 'Exposure', ru: 'Экспозиция' } },
+            { name: 'WORLD3D_POST_CONTRAST', min: 0, max: 2, step: 0.05, label: { en: 'Contrast', ru: 'Контраст' } },
+            { name: 'WORLD3D_POST_SATURATION', min: -100, max: 100, step: 1, label: { en: 'Overall saturation', ru: 'Общая насыщенность' } },
+            { name: 'WORLD3D_POST_SHADOW_SATURATION', min: -100, max: 100, step: 1, label: { en: 'Shadow saturation', ru: 'Насыщенность теней' } },
+            { name: 'WORLD3D_POST_MIDTONE_SATURATION', min: -100, max: 100, step: 1, label: { en: 'Midtone saturation', ru: 'Насыщенность средних тонов' } },
+            { name: 'WORLD3D_POST_HIGHLIGHT_SATURATION', min: -100, max: 100, step: 1, label: { en: 'Highlight saturation', ru: 'Насыщенность светлых тонов' } },
+            { name: 'WORLD3D_POST_SHADOW_EXPOSURE', min: -100, max: 100, step: 1, label: { en: 'Shadow exposure', ru: 'Экспозиция теней' } },
+            { name: 'WORLD3D_POST_MIDTONE_EXPOSURE', min: -100, max: 100, step: 1, label: { en: 'Midtone exposure', ru: 'Экспозиция средних тонов' } },
+            { name: 'WORLD3D_POST_HIGHLIGHT_EXPOSURE', min: -100, max: 100, step: 1, label: { en: 'Highlight exposure', ru: 'Экспозиция светлых тонов' } },
+            { name: 'WORLD3D_POST_TONEMAP', kind: 'select', options: SCHEMA_NO_YES, label: { en: 'Tone mapping', ru: 'Тон-маппинг' } },
+            { name: 'WORLD3D_POST_BLOOM', kind: 'select', options: SCHEMA_NO_YES, label: { en: 'Bloom', ru: 'Свечение (Bloom)' } },
+            { name: 'WORLD3D_POST_BLOOM_WEIGHT', min: 0, max: 2, step: 0.05, label: { en: 'Bloom strength', ru: 'Сила свечения' } },
+            { name: 'WORLD3D_POST_BLOOM_THRESHOLD', min: 0, max: 2, step: 0.05, label: { en: 'Bloom threshold', ru: 'Порог свечения' } },
+            { name: 'WORLD3D_POST_GRAIN', kind: 'select', options: SCHEMA_NO_YES, label: { en: 'Film grain', ru: 'Зерно' } },
+            { name: 'WORLD3D_POST_GRAIN_INTENSITY', min: 0, max: 100, step: 1, label: { en: 'Grain intensity', ru: 'Сила зерна' } },
+            { name: 'WORLD3D_POST_CHROMATIC', kind: 'select', options: SCHEMA_NO_YES, label: { en: 'Chromatic aberration', ru: 'Хроматическая аберрация' } },
+            { name: 'WORLD3D_POST_CHROMATIC_AMOUNT', min: 0, max: 100, step: 1, label: { en: 'Chromatic aberration strength', ru: 'Сила хроматической аберрации' } },
+            { name: 'WORLD3D_POST_PIXELATE', kind: 'select', options: SCHEMA_NO_YES, label: { en: 'Pixelation', ru: 'Пикселизация' }, hint: { en: 'Affects the camera image; the HUD stays sharp', ru: 'Действует на изображение камеры; интерфейс остаётся чётким' } },
+            { name: 'WORLD3D_POST_PIXEL_SIZE', min: 1, max: 24, step: 1, label: { en: 'Pixel size (render px)', ru: 'Размер пикселя (px рендера)' } },
+        ],
+    },
+    {
+        id: 'mining',
+        label: { en: 'Mining prototype', ru: 'Прототип добычи' },
+        fields: [
+            { name: 'MINING_HEALTH', min: 20, max: 1000, step: 10, label: { en: 'Ore durability', ru: 'Прочность руды' }, hint: { en: 'Durability per deposit', ru: 'Прочность одной залежи' } },
+            { name: 'MINING_DAMAGE', min: 1, max: 200, step: 1, label: { en: 'Normal damage', ru: 'Обычный урон' }, hint: { en: 'Damage from a normal hit', ru: 'Урон обычного удара' } },
+            { name: 'MINING_WEAK_MULTIPLIER', min: 1, max: 10, step: 0.1, label: { en: 'Weak point multiplier', ru: 'Множитель слабой точки' }, hint: { en: 'Multiplies damage on an amber seam', ru: 'Умножает урон по янтарной жиле' } },
+            { name: 'MINING_WEAK_RADIUS', min: 5, max: 100, step: 1, label: { en: 'Weak point radius (cm)', ru: 'Радиус слабой точки (см)' }, hint: { en: 'Distance from the fixed surface anchor', ru: 'Расстояние от фиксированной точки на поверхности' } },
+            { name: 'MINING_REACH', min: 100, max: 800, step: 10, label: { en: 'Reach (cm)', ru: 'Дистанция удара (см)' }, hint: { en: 'Maximum strike distance', ru: 'Максимальная дистанция удара' } },
+            { name: 'MINING_SWING_INTERVAL', min: 0.12, max: 2, step: 0.01, label: { en: 'Swing interval (s)', ru: 'Интервал ударов (с)' }, hint: { en: 'Time between held attacks', ru: 'Время между ударами при удержании' } },
+            { name: 'MINING_CONTACT_DELAY', min: 0, max: 0.5, step: 0.01, label: { en: 'Contact delay (s)', ru: 'Задержка попадания (с)' }, hint: { en: 'Delay after the swing begins', ru: 'Задержка после начала замаха' } },
+            { name: 'MINING_YIELD', min: 1, max: 100, step: 1, label: { en: 'Resource yield', ru: 'Добыча ресурсов' }, hint: { en: 'Iron awarded when the dropped block is collected', ru: 'Железо при подборе выпавшего блока' } },
+            { name: 'MINING_MOVE_SPEED', min: 50, max: 800, step: 10, label: { en: 'Move speed (cm/s)', ru: 'Скорость движения (см/с)' }, hint: { en: 'First-person movement speed', ru: 'Скорость передвижения игрока' } },
+            { name: 'MINING_MOUSE_SENSITIVITY', min: 0.0002, max: 0.01, step: 0.0001, label: { en: 'Mouse sensitivity', ru: 'Чувствительность мыши' }, hint: { en: 'Look speed per mouse pixel', ru: 'Скорость обзора на пиксель движения мыши' } },
+            { name: 'MINING_SOUND_VOLUME', min: 0, max: 1, step: 0.05, label: { en: 'Impact volume', ru: 'Громкость ударов' }, hint: { en: 'Impact effects volume', ru: 'Громкость звуков ударов' } },
+            { name: 'MINING_SOUND_NORMAL', min: 0, max: 2, step: 0.05, label: { en: 'Normal hit volume multiplier', ru: 'Громкость обычного удара' } },
+            { name: 'MINING_SOUND_WEAK', min: 0, max: 2, step: 0.05, label: { en: 'Weak hit volume multiplier', ru: 'Громкость слабой точки' } },
+            { name: 'MINING_SOUND_BREAK', min: 0, max: 2, step: 0.05, label: { en: 'Break volume multiplier', ru: 'Громкость разрушения' }, hint: { en: 'Each multiplier is applied to impact volume; final volume is capped at 1', ru: 'Множители применяются к общей громкости ударов; итог не выше 1' } },
+        ],
+    },
+    {
+        id: 'mining-impact-shape', label: { en: 'Mining impact — shape and flash', ru: 'Удар по руде — форма и вспышка' },
+        fields: [
+            { name: 'MINING_SQUASH', min: 0, max: 0.8, step: 0.01, label: { en: 'Compression', ru: 'Сила сжатия' }, hint: { en: '0 disables compression; 0.8 is the maximum', ru: '0 отключает сжатие; максимум 0,8' } },
+            { name: 'MINING_WEAK_SQUASH', min: 0, max: 4, step: 0.1, label: { en: 'Weak-point compression multiplier', ru: 'Множитель сжатия слабой точки' }, hint: { en: 'Final compression is capped at 0.8', ru: 'Итоговое сжатие ограничено значением 0,8' } },
+            { name: 'MINING_SQUASH_DURATION', min: 0.05, max: 2, step: 0.01, label: { en: 'Return duration (s)', ru: 'Время возврата формы (с)' } },
+            { name: 'MINING_SQUASH_SPREAD', min: 0, max: 2, step: 0.05, label: { en: 'Sideways stretch', ru: 'Растяжение в стороны' }, hint: { en: '1 approximately preserves volume; 0 disables sideways stretch', ru: '1 примерно сохраняет объём; 0 отключает растяжение в стороны' } },
+            { name: 'MINING_SQUASH_DECAY', min: 0, max: 10, step: 0.1, label: { en: 'Spring damping', ru: 'Затухание колебаний' } },
+            { name: 'MINING_SQUASH_OSCILLATIONS', min: 0, max: 30, step: 0.5, label: { en: 'Spring oscillation speed', ru: 'Частота колебаний формы' } },
+            { name: 'MINING_FLASH_DURATION', min: 0, max: 1, step: 0.01, label: { en: 'Flash duration (s)', ru: 'Длительность вспышки (с)' }, hint: { en: '0 disables the flash', ru: '0 отключает вспышку' } },
+            { name: 'MINING_FLASH_COLOR', kind: 'color', label: { en: 'Flash color', ru: 'Цвет вспышки' } },
+            { name: 'MINING_SWING_STRENGTH', min: 0, max: 2, step: 0.05, label: { en: 'Pickaxe swing strength', ru: 'Размах кирки' } },
+            { name: 'MINING_SWING_RECOVERY', min: 0.02, max: 1, step: 0.01, label: { en: 'Pickaxe return time (s)', ru: 'Время возврата кирки (с)' } },
+        ],
+    },
+    {
+        id: 'mining-impact-particles', label: { en: 'Mining impact — particles', ru: 'Удар по руде — частицы' },
+        fields: [
+            { name: 'MINING_CHIPS', min: 0, max: 60, step: 1, label: { en: 'Particles per hit', ru: 'Частиц при ударе' } },
+            { name: 'MINING_CHIP_BREAK_EXTRA', min: 0, max: 60, step: 1, label: { en: 'Extra particles on break', ru: 'Дополнительные частицы при разрушении' }, hint: { en: 'Set both counts to 0 to disable particles; 120 active maximum', ru: 'Чтобы отключить частицы, поставьте оба количества на 0; не более 120 одновременно' } },
+            { name: 'MINING_CHIP_LIFETIME', min: 0.1, max: 5, step: 0.05, label: { en: 'Lifetime (s)', ru: 'Время жизни (с)' } },
+            { name: 'MINING_CHIP_FADE', min: 0, max: 3, step: 0.05, label: { en: 'Fade duration (s)', ru: 'Длительность исчезновения (с)' }, hint: { en: '0 removes particles without fading', ru: '0 убирает частицы без плавного исчезновения' } },
+            { name: 'MINING_CHIP_SIZE', min: 1, max: 40, step: 1, label: { en: 'Minimum size (cm)', ru: 'Минимальный размер (см)' } },
+            { name: 'MINING_CHIP_SIZE_VARIATION', min: 0, max: 40, step: 1, label: { en: 'Random size increase (cm)', ru: 'Случайная прибавка размера (см)' } },
+            { name: 'MINING_CHIP_SPEED', min: 0, max: 700, step: 10, label: { en: 'Side speed (cm/s)', ru: 'Скорость разлёта в стороны (см/с)' } },
+            { name: 'MINING_CHIP_SPEED_VARIATION', min: 0, max: 700, step: 10, label: { en: 'Random side speed (cm/s)', ru: 'Случайная прибавка скорости в стороны (см/с)' } },
+            { name: 'MINING_CHIP_LIFT', min: 0, max: 700, step: 10, label: { en: 'Upward speed (cm/s)', ru: 'Скорость вверх (см/с)' } },
+            { name: 'MINING_CHIP_LIFT_VARIATION', min: 0, max: 700, step: 10, label: { en: 'Random upward speed (cm/s)', ru: 'Случайная прибавка скорости вверх (см/с)' } },
+            { name: 'MINING_CHIP_GRAVITY', min: 0, max: 2000, step: 25, label: { en: 'Gravity (cm/s²)', ru: 'Сила падения (см/с²)' } },
+            { name: 'MINING_CHIP_BOUNCE', min: 0, max: 1, step: 0.05, label: { en: 'Bounce', ru: 'Упругость отскока' } },
+            { name: 'MINING_CHIP_FRICTION', min: 0, max: 1, step: 0.05, label: { en: 'Floor friction', ru: 'Трение об пол' } },
+            { name: 'MINING_CHIP_COLOR', kind: 'color', label: { en: 'Normal hit color', ru: 'Цвет обычных частиц' } },
+            { name: 'MINING_CHIP_WEAK_COLOR', kind: 'color', label: { en: 'Weak hit color', ru: 'Цвет частиц слабой точки' } },
+        ],
+    },
+    {
+        id: 'mining-impact-drop', label: { en: 'Mining — drop and health bar', ru: 'Добыча — выпавший блок и здоровье' },
+        fields: [
+            { name: 'MINING_DROP_SCALE', min: 0.1, max: 1, step: 0.05, label: { en: 'Dropped ore scale', ru: 'Размер руды после вылета' }, hint: { en: 'Relative to its original size: 0.5 is half size', ru: 'От исходного размера: 0,5 — уменьшение вдвое' } },
+            { name: 'MINING_DROP_SHRINK_TIME', min: 0, max: 2, step: 0.05, label: { en: 'Shrink time (s)', ru: 'Время уменьшения (с)' }, hint: { en: '0 shrinks immediately; otherwise the ore shrinks during flight', ru: '0 уменьшает сразу; иначе руда уменьшается во время полёта' } },
+            { name: 'MINING_DROP_LAUNCH_SPEED', min: 0, max: 800, step: 10, label: { en: 'Drop launch speed (cm/s)', ru: 'Скорость вылета блока (см/с)' }, hint: { en: 'The ore flies away from the player', ru: 'Руда отлетает от игрока' } },
+            { name: 'MINING_DROP_DISTANCE_FACTOR', min: 0, max: 3, step: 0.05, label: { en: 'Flight distance multiplier', ru: 'Дальность отлёта (множитель)' }, hint: { en: '0.5 halves sideways travel at the same speed setting and lift; 0 removes sideways travel', ru: '0,5 уменьшает дальность вдвое при тех же настройках скорости и подъёма; 0 убирает отлёт в сторону' } },
+            { name: 'MINING_DROP_LAUNCH_LIFT', min: 0, max: 400, step: 10, label: { en: 'Drop upward speed (cm/s)', ru: 'Скорость блока вверх (см/с)' } },
+            { name: 'MINING_DROP_GRAVITY', min: 100, max: 2000, step: 25, label: { en: 'Drop gravity (cm/s²)', ru: 'Сила падения блока (см/с²)' } },
+            { name: 'MINING_DROP_BOUNCE', min: 0, max: 0.9, step: 0.05, label: { en: 'Drop bounce', ru: 'Упругость блока' } },
+            { name: 'MINING_DROP_FRICTION', min: 0, max: 1, step: 0.05, label: { en: 'Drop floor friction', ru: 'Трение блока о пол' } },
+            { name: 'MINING_DROP_HEIGHT', min: 0, max: 200, step: 1, label: { en: 'Drop hover height (cm)', ru: 'Высота блока над полом (см)' } },
+            { name: 'MINING_DROP_BOB', min: 0, max: 50, step: 1, label: { en: 'Drop bob amplitude (cm)', ru: 'Размах покачивания блока (см)' } },
+            { name: 'MINING_DROP_BOB_SPEED', min: 0, max: 10, step: 0.1, label: { en: 'Drop bob speed', ru: 'Скорость покачивания блока' } },
+            { name: 'MINING_DROP_SPIN', min: 0, max: 10, step: 0.1, label: { en: 'Spin during flight (rad/s)', ru: 'Вращение в полёте (рад/с)' } },
+            { name: 'MINING_DROP_PICKUP_RADIUS', min: 0, max: 300, step: 5, label: { en: 'Pickup radius (cm)', ru: 'Радиус подбора (см)' } },
+            { name: 'MINING_DROP_PICKUP_DELAY', min: 0, max: 5, step: 0.05, label: { en: 'Pickup delay (s)', ru: 'Задержка подбора (с)' } },
+            { name: 'MINING_BAR_ENABLED', kind: 'select', options: SCHEMA_NO_YES, label: { en: 'Show health bars', ru: 'Показывать здоровье руды' } },
+            { name: 'MINING_BAR_WIDTH', min: 0.1, max: 3, step: 0.1, label: { en: 'Bar width multiplier', ru: 'Множитель ширины шкалы' } },
+            { name: 'MINING_BAR_HEIGHT', min: 4, max: 50, step: 1, label: { en: 'Bar height (cm)', ru: 'Высота шкалы (см)' } },
+            { name: 'MINING_BAR_OFFSET', min: 0, max: 150, step: 1, label: { en: 'Bar offset above ore (cm)', ru: 'Расстояние шкалы от руды (см)' } },
+            { name: 'MINING_BAR_COLOR', kind: 'color', label: { en: 'Health bar color', ru: 'Цвет шкалы здоровья' } },
+        ],
+    },
     {
         id: 'camera',
         label: { en: 'Camera', ru: 'Камера' },

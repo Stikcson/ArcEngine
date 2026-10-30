@@ -186,6 +186,7 @@ const World3D = {
         for (const m of view.scene.materials) this.applyMaterialConstants(m, c);
         this.applyInk(view.scene, c);
         this.applyOutlines(view, c);
+        view.applyPostProcessing();
         view.scene.resetCachedMaterial();
     },
 
@@ -761,8 +762,8 @@ class ArcToonPlugin extends BABYLON.MaterialPluginBase {
         }
         const ground = !!(m.metadata && m.metadata.toonGroup === 'ground');
         const bands = (ground && !s.ground) ? 0 : s.bands;
-        ubo.updateFloat4('arcToonA', bands, s.soft, s.low, s.spec);
-        ubo.updateFloat4('arcToonB', s.specSize, ground ? 0 : s.rim, s.rimWidth, 0);
+        ubo.updateFloat4('arcToonA', bands, s.soft, md && md.arcCave ? 0 : s.low, s.spec);
+        ubo.updateFloat4('arcToonB', s.specSize, ground || (md && md.arcCave) ? 0 : s.rim, s.rimWidth, 0);
     }
 
     getCustomCode(shaderType) {
@@ -893,6 +894,8 @@ World3D.toon = ArcToon;
 class View3D {
     // opts: { sky?, groundTint?, shadowColor?, fogDensity?, shadowRadius? } — constant overrides
     constructor(world, opts) {
+        /** @type {{sun:boolean,sky:boolean,points:any[]} | null} */
+        this.sceneLighting = null;
         this.world = world;
         this.opts = opts;
         this.active = false;
@@ -928,6 +931,12 @@ class View3D {
         this.camera.setTarget(new BABYLON.Vector3(1, 0, 1));
         scene.activeCamera = this.camera;
 
+        // Both game and editor use this camera. Keep HUD in the DOM outside this pass.
+        this.postPipeline = new BABYLON.DefaultRenderingPipeline('arc-post', false, scene, [this.camera]);
+        this.postCurves = new BABYLON.ColorCurves();
+        this.pixelPass = null;
+        this.applyPostProcessing();
+
         // --- Light: sky (hemisphere) + sun; values — applyLighting ---
         this.hemi = new BABYLON.HemisphericLight('hemi', new BABYLON.Vector3(0, 1, 0), scene);
         this.hemi.specular = new BABYLON.Color3(0, 0, 0);
@@ -953,6 +962,62 @@ class View3D {
         world.view = this;
     }
 
+    // Apply the same live settings in the editor and at game startup.
+    applyPostProcessing() {
+        const pipeline = this.postPipeline;
+        if (!pipeline) return;
+        const enabled = (typeof WORLD3D_POST_ENABLED !== 'undefined' ? WORLD3D_POST_ENABLED : 0) > 0;
+        const pixel = (typeof WORLD3D_POST_PIXELATE !== 'undefined' ? WORLD3D_POST_PIXELATE : 0) > 0;
+        const size = Math.max(1, typeof WORLD3D_POST_PIXEL_SIZE !== 'undefined' ? WORLD3D_POST_PIXEL_SIZE : 4);
+        // Rebuilding the built-in pipeline can reorder attached passes. Detach ours first
+        // and append it once after all built-in effects, including on repeated live edits.
+        if (this.pixelPass) this.camera.detachPostProcess(this.pixelPass);
+        pipeline.imageProcessingEnabled = enabled;
+        pipeline.bloomEnabled = enabled && (typeof WORLD3D_POST_BLOOM !== 'undefined' ? WORLD3D_POST_BLOOM : 0) > 0;
+        pipeline.grainEnabled = enabled && (typeof WORLD3D_POST_GRAIN !== 'undefined' ? WORLD3D_POST_GRAIN : 0) > 0;
+        pipeline.chromaticAberrationEnabled = enabled && (typeof WORLD3D_POST_CHROMATIC !== 'undefined' ? WORLD3D_POST_CHROMATIC : 0) > 0;
+        // The pipeline destroys its ImageProcessingPostProcess when disabled; the
+        // shared scene configuration remains available across toggles.
+        const image = this.scene.imageProcessingConfiguration;
+        image.vignetteEnabled = enabled && (typeof WORLD3D_POST_VIGNETTE !== 'undefined' ? WORLD3D_POST_VIGNETTE : 1) > 0;
+        image.vignetteWeight = Math.max(0, typeof WORLD3D_POST_VIGNETTE_WEIGHT !== 'undefined' ? WORLD3D_POST_VIGNETTE_WEIGHT : 1.3);
+        image.vignetteStretch = typeof WORLD3D_POST_VIGNETTE_STRETCH !== 'undefined' ? WORLD3D_POST_VIGNETTE_STRETCH : 0;
+        image.exposure = enabled ? Math.max(0, typeof WORLD3D_POST_EXPOSURE !== 'undefined' ? WORLD3D_POST_EXPOSURE : 0.9) : 1;
+        image.contrast = enabled ? Math.max(0, typeof WORLD3D_POST_CONTRAST !== 'undefined' ? WORLD3D_POST_CONTRAST : 1.05) : 1;
+        image.toneMappingEnabled = enabled && (typeof WORLD3D_POST_TONEMAP !== 'undefined' ? WORLD3D_POST_TONEMAP : 0) > 0;
+        this.postCurves.globalSaturation = typeof WORLD3D_POST_SATURATION !== 'undefined' ? WORLD3D_POST_SATURATION : -25;
+        this.postCurves.shadowsSaturation = typeof WORLD3D_POST_SHADOW_SATURATION !== 'undefined' ? WORLD3D_POST_SHADOW_SATURATION : 0;
+        this.postCurves.midtonesSaturation = typeof WORLD3D_POST_MIDTONE_SATURATION !== 'undefined' ? WORLD3D_POST_MIDTONE_SATURATION : 0;
+        this.postCurves.highlightsSaturation = typeof WORLD3D_POST_HIGHLIGHT_SATURATION !== 'undefined' ? WORLD3D_POST_HIGHLIGHT_SATURATION : 0;
+        this.postCurves.shadowsExposure = typeof WORLD3D_POST_SHADOW_EXPOSURE !== 'undefined' ? WORLD3D_POST_SHADOW_EXPOSURE : 0;
+        this.postCurves.midtonesExposure = typeof WORLD3D_POST_MIDTONE_EXPOSURE !== 'undefined' ? WORLD3D_POST_MIDTONE_EXPOSURE : 0;
+        this.postCurves.highlightsExposure = typeof WORLD3D_POST_HIGHLIGHT_EXPOSURE !== 'undefined' ? WORLD3D_POST_HIGHLIGHT_EXPOSURE : 0;
+        image.colorCurves = this.postCurves;
+        image.colorCurvesEnabled = enabled;
+        pipeline.bloomWeight = Math.max(0, typeof WORLD3D_POST_BLOOM_WEIGHT !== 'undefined' ? WORLD3D_POST_BLOOM_WEIGHT : 0.15);
+        pipeline.bloomThreshold = Math.max(0, typeof WORLD3D_POST_BLOOM_THRESHOLD !== 'undefined' ? WORLD3D_POST_BLOOM_THRESHOLD : 0.85);
+        if (pipeline.grain) pipeline.grain.intensity = Math.max(0, typeof WORLD3D_POST_GRAIN_INTENSITY !== 'undefined' ? WORLD3D_POST_GRAIN_INTENSITY : 5);
+        if (pipeline.chromaticAberration) pipeline.chromaticAberration.aberrationAmount = Math.max(0, typeof WORLD3D_POST_CHROMATIC_AMOUNT !== 'undefined' ? WORLD3D_POST_CHROMATIC_AMOUNT : 10);
+        if (pixel) {
+            if (!this.pixelPass) {
+                BABYLON.Effect.ShadersStore.arcPixelPixelShader = `precision highp float;
+                    varying vec2 vUV;
+                    uniform sampler2D textureSampler;
+                    uniform vec2 screenSize;
+                    uniform float pixelSize;
+                    void main(void) {
+                        vec2 grid = max(floor(screenSize / pixelSize), vec2(1.0));
+                        vec2 uv = (floor(vUV * grid) + 0.5) / grid;
+                        gl_FragColor = texture2D(textureSampler, uv);
+                    }`;
+                this.pixelPass = new BABYLON.PostProcess('arc-pixel', 'arcPixel', ['screenSize', 'pixelSize'], null, 1, null, BABYLON.Texture.NEAREST_SAMPLINGMODE, this.engine);
+            }
+            const pass = this.pixelPass;
+            pass.onApply = effect => { effect.setFloat2('screenSize', pass.width, pass.height); effect.setFloat('pixelSize', size); };
+            this.camera.attachPostProcess(pass);
+        }
+    }
+
     // Light, sky, fog and shadows from the render constants (the view's opts override them).
     // Also here — the colored shadow plugin data (scene.metadata.arcSun, arcShadow):
     // shadow density and color are computed by the shader, Babylon's darkness is 0.
@@ -963,19 +1028,22 @@ class View3D {
         const o = this.opts || {};
         const scene = this.scene;
         const sky = World3D.hexColor3(o.sky != null ? o.sky : c.sky);
+        if (this.sceneLighting && !this.sceneLighting.sky) sky.set(0, 0, 0);
         scene.clearColor = new BABYLON.Color4(sky.r, sky.g, sky.b, 1);
         scene.fogColor = sky;
         scene.fogDensity = Math.max(0, o.fogDensity != null ? o.fogDensity : c.fog);
 
-        this.hemi.intensity = Math.max(0, c.skyIntensity);
+        this.hemi.intensity = this.sceneLighting && !this.sceneLighting.sky ? 0 : Math.max(0, c.skyIntensity);
         this.hemi.diffuse = World3D.hexColor3(c.skyLight);
         this.hemi.groundColor = World3D.hexColor3(o.groundTint != null ? o.groundTint : c.groundLight);
 
         this.sun.direction = World3D.sunDirection(c);
-        this.sun.intensity = Math.max(0, c.sunIntensity);
+        this.sun.intensity = this.sceneLighting && !this.sceneLighting.sun ? 0 : Math.max(0, c.sunIntensity);
+        this.sun.shadowEnabled = !(this.sceneLighting && !this.sceneLighting.sun);
         this.sun.diffuse = World3D.hexColor3(c.sunColor);
 
         const md = scene.metadata || (scene.metadata = {});
+        md.arcCave = !!(this.sceneLighting && !this.sceneLighting.sun && !this.sceneLighting.sky);
         md.arcSun = {
             dir: this.sun.direction.negate().normalize(),
             color: this.sun.diffuse.scale(this.sun.intensity)
@@ -1221,6 +1289,8 @@ class View3D {
         this.active = false;
         if (this.world.view === this) this.world.view = null;
         this._syncFns = [];
+        if (this.pixelPass) this.pixelPass.dispose();
+        if (this.postPipeline) this.postPipeline.dispose();
         try { this.scene.dispose(); } catch (e) { /* already disposed */ }
         this.scene = null;
     }

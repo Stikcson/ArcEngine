@@ -31,17 +31,21 @@ const ObjectsPanel = {
     propEls: null,      // property fields of the selected one: { pos: { x, y, h }, rot, scale }
     _down: null,        // LMB press point: a click without movement selects an object
     _importing: false,
+    /** @type {string[]} */
+    textureFiles: [],
 
     // A copy of LOCATION_OBJECTS — the starting records of the editor's Location3D and the base
     // of the dirty layout. Old records (rot — a heading number, scale — a number) become triples.
     initialObjects() {
-        const list = (typeof LOCATION_OBJECTS !== 'undefined' && Array.isArray(LOCATION_OBJECTS)) ? LOCATION_OBJECTS : [];
-        const defs = JSON.parse(JSON.stringify(list)).map((d) => Object.assign(d, {
+        const defs=this.normalizeObjects(ScenePanel.active ? ScenePanel.active.objects : []);
+        this.saved = JSON.stringify(defs);
+        return defs;
+    },
+    normalizeObjects(list) {
+        return JSON.parse(JSON.stringify(list)).map((d) => Object.assign(d, {
             rot: Array.isArray(d.rot) ? d.rot : [0, Number(d.rot) || 0, 0],
             scale: Array.isArray(d.scale) ? d.scale : [1, 1, 1].map(() => (Number(d.scale) > 0 ? Number(d.scale) : 1)),
         }));
-        this.saved = JSON.stringify(defs);
-        return defs;
     },
 
     init(lab) {
@@ -63,11 +67,14 @@ const ObjectsPanel = {
         });
         lab.canvas.addEventListener('pointerup', (e) => this.onClick(e));
 
+        document.getElementById('btn-add-camera').addEventListener('click', () => this.addCamera());
         document.getElementById('btn-import').addEventListener('click', () => this.importModel());
         document.getElementById('btn-objects-save').addEventListener('click', () => this.save());
         document.getElementById('btn-objects-revert').addEventListener('click', () => this.revert());
         window.addEventListener('keydown', (e) => this.onKey(e));
         window.addEventListener('lang-changed', () => this.render());
+        window.addEventListener('focus', () => this.loadTextures());
+        this.loadTextures();
 
         for (const rec of lab.location.objects) this.watch(rec);
         this.render();
@@ -189,7 +196,7 @@ const ObjectsPanel = {
     onMoveDrag(vertical) {
         const rec = this.selected;
         if (!rec || !rec.mesh) return;
-        const p = rec.mesh.position, d = rec.def, t = this.lab.location.terrain;
+        const p = rec.mesh.position, d = rec.def, t = this.lab.location.terrainEnabled ? this.lab.location.terrain : null;
         const ground = t ? t.heightAt(p.x, p.z) : 0;
         d.x = this.round(p.x, 1);
         d.y = this.round(p.z, 1);
@@ -254,6 +261,7 @@ const ObjectsPanel = {
                 Object.assign(rec.def, d);
                 loc.placeObject(rec);
                 loc.applyHidden(rec);
+                loc.applyMaterials(rec);
             });
         } else {
             this.gizmo.attachToMesh(null);
@@ -264,6 +272,11 @@ const ObjectsPanel = {
     },
 
     // --- Editing ----------------------------------------------------------------
+
+    addCamera() {
+        const at=this.lab.camera.groundFocus();
+        this.addObject({name:this.uniqueName(I18N.t('sensor.camera')),model:Surveillance.MODEL,kind:'prop',x:this.round(at.x,1),y:this.round(at.y,1),h:0,rot:[0,0,0],scale:[1,1,1],sensor:Surveillance.defaults()});
+    },
 
     addObject(def) {
         const before = this.snapshot();
@@ -355,6 +368,35 @@ const ObjectsPanel = {
         this.commit('field:' + before.selected + ':sound', before);
     },
 
+    async loadTextures() {
+        try {
+            const response=await fetch('/api/textures',{cache:'no-store'}), data=await response.json();
+            if (!data.ok || !Array.isArray(data.textures)) return;
+            this.textureFiles=data.textures;
+            const host=document.getElementById('object-props');
+            if (!host || !host.contains(document.activeElement)) this.renderProps();
+        } catch (e) { /* The server version indicator reports unavailable or old servers. */ }
+    },
+
+    setMaterial(index, field, value) {
+        const rec=this.selected;if(!rec) return;
+        const before=this.snapshot(), list=(rec.def.materials || []).map(x=>Object.assign({},x));
+        let entry=list.find(x=>x.slot===index);
+        if (!entry) { entry={slot:index};list.push(entry); }
+        if (value === undefined) delete entry[field]; else entry[field]=value;
+        const filtered=list.filter(x=>Object.keys(x).length>1).sort((a,b)=>a.slot-b.slot);
+        if (filtered.length) rec.def.materials=filtered;else delete rec.def.materials;
+        this.lab.location.applyMaterials(rec);
+        this.commit('field:'+before.selected+':material:'+index+':'+field,before);
+    },
+
+    resetMaterial(index) {
+        const rec=this.selected;if(!rec) return;
+        const before=this.snapshot(), list=(rec.def.materials || []).filter(x=>x.slot!==index);
+        if(list.length)rec.def.materials=list;else delete rec.def.materials;
+        this.lab.location.applyMaterials(rec);this.commit(null,before);this.renderProps();
+    },
+
     // The looped clip of the selected .glb model; '' — remove (the rest pose).
     setClip(name) {
         const rec = this.selected;
@@ -402,7 +444,7 @@ const ObjectsPanel = {
     },
 
     onKey(e) {
-        if ((e.ctrlKey || e.metaKey) && e.code === 'KeyS') { this.save(); return; }   // the default is suppressed by the inspector
+        if ((e.ctrlKey || e.metaKey) && e.code === 'KeyS') { if (PaneTabs.current !== 'player') this.save(); return; }   // the default is suppressed by the inspector
         if (PaneTabs.current === 'ui') return;   // Del, Esc, Ctrl+D belong to the UI tab's element
         const t = e.target;
         if (t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable)) return;
@@ -422,7 +464,7 @@ const ObjectsPanel = {
     },
 
     isDirty() {
-        return JSON.stringify(this.defs()) !== this.saved;
+        return JSON.stringify(this.defs()) !== this.saved || ScenePanel.terrainEnabled !== ScenePanel.savedTerrain || LightingPanel.isDirty();
     },
 
     async post(url, body) {
@@ -473,21 +515,28 @@ const ObjectsPanel = {
     async save() {
         if (!this.isDirty()) return;
         if (!Inspector.saveAvailable) { Toast.show(I18N.t('toast.noSave'), true); return; }
-        const objects = this.defs();
+        if (Inspector.server.api < EDITOR_API_VERSION) { Toast.show(I18N.t('scene.oldServer'),true); return; }
+        if (ScenePanel.busy || ScenePanel.saving || !ScenePanel.active) return;
+        const objects = JSON.parse(JSON.stringify(this.defs())), saved=JSON.stringify(objects), terrainEnabled=ScenePanel.terrainEnabled, lighting=LightingPanel.copy(), lightingSaved=JSON.stringify(lighting);
+        ScenePanel.saving=true;ScenePanel.render();
         try {
-            const j = await this.post('/api/save-objects', { objects });
-            if (!j.ok) throw new Error(Inspector.errorText(j) + (j.index != null ? ' — #' + (j.index + 1) : ''));
-            this.saved = JSON.stringify(objects);
+            const j = await this.post('/api/scene/save', { id:ScenePanel.active.id, revision:ScenePanel.revision, objects, terrainEnabled, lighting });
+            if (!j.ok) throw new Error(j.code==='scene_conflict' ? I18N.t('scene.conflict') : Inspector.errorText(j) + (j.index != null ? ' — #' + (j.index + 1) : ''));
+            ScenePanel.revision=j.revision;ScenePanel.active.objects=objects;ScenePanel.active.terrainEnabled=terrainEnabled;ScenePanel.savedTerrain=terrainEnabled;
+            LightingPanel.saved=lightingSaved;ScenePanel.active.lighting=lighting;
+            this.saved = saved;
             this.renderHeader();
             Toast.show(I18N.t('toast.objSaved', { n: j.count, backup: j.backup || '—' }));
         } catch (e) {
             Toast.show(I18N.t('toast.objSaveError', { msg: e.message }), true);
-        }
+        } finally { ScenePanel.saving=false;ScenePanel.render();Inspector.refreshSaveButton(); }
     },
 
     revert() {
         const before = this.snapshot();
         this.restore({ defs: this.saved, selected: -1 });
+        ScenePanel.setTerrain(ScenePanel.savedTerrain);
+        LightingPanel.revert();
         this.commit(null, before);
         Toast.show(I18N.t('toast.objReverted'));
     },
@@ -578,6 +627,9 @@ const ObjectsPanel = {
         els.scale = this.vector(['X', 'Y', 'Z'], 0.1, (i) => d.scale[i], (i, v) => { if (v > 0) setTriple('scale', i, this.round(v, 3)); });
         host.appendChild(this.row('obj.scale', 'obj.scaleHint', ...els.scale.parts));
 
+        if (rec.def.sensor) this.renderSensor(host, rec);
+        this.renderBlobShadow(host, rec);
+        this.renderMaterials(host, rec);
         this.renderAnim(host, rec);
         this.renderSound(host, rec);
 
@@ -589,6 +641,128 @@ const ObjectsPanel = {
             actions.appendChild(btn);
         }
         host.appendChild(actions);
+    },
+
+    renderSensor(host, rec) {
+        host.appendChild(this.el('div', 'props-section', I18N.t('sensor.title')));
+        for (const key of ['distance','radius']) {
+            const min=key==='distance'?10:1;
+            const num=this.input('number',this.fmt(rec.def.sensor[key]));
+            num.min=String(min);num.max='10000';num.step='10';
+            num.addEventListener('input',()=>{
+                if(num.value==='')return;const n=Number(num.value);if(!Number.isFinite(n))return;
+                const before=this.snapshot();rec.def.sensor=Object.assign({},rec.def.sensor,{[key]:this.round(Math.max(min,Math.min(10000,n)),1)});
+                this.commit('field:'+before.selected+':sensor:'+key,before);
+            });
+            num.addEventListener('blur',()=>{num.value=this.fmt(rec.def.sensor[key]);});
+            host.appendChild(this.row('sensor.'+key,'sensor.'+key+'Hint',num));
+        }
+    },
+
+    renderBlobShadow(host, rec) {
+        host.appendChild(this.el('div', 'props-section', I18N.t('blob.title')));
+        const get = () => Location3D.blobSettings(rec.def, null, true);
+        const custom = this.input('checkbox', ''); custom.checked = !!rec.def.blobShadow;
+        custom.addEventListener('change', () => {
+            const before = this.snapshot();
+            if (custom.checked) {
+                const s=get();rec.def.blobShadow={enabled:s.enabled,sizeX:s.sizeX,sizeZ:s.sizeX,opacity:s.opacity,curve:s.curve.slice()};
+            } else delete rec.def.blobShadow;
+            this.commit(null,before);this.renderProps();
+        });
+        host.appendChild(this.row('blob.custom', 'blob.customHint', custom));
+        if (!custom.checked) return;
+        const edit = (key, value) => {
+            const before = this.snapshot(), current = get();
+            rec.def.blobShadow = Object.assign({}, rec.def.blobShadow, { curve: current.curve.slice(), [key]: value });
+            if (key === 'sizeX') rec.def.blobShadow.sizeZ = value;
+            this.commit('field:' + before.selected + ':blob:' + key, before);
+        };
+        const enabled = this.input('checkbox', ''); enabled.checked = get().enabled;
+        enabled.addEventListener('change', () => { edit('enabled', enabled.checked); this.renderProps(); });
+        host.appendChild(this.row('blob.enabled', 'blob.hint', enabled));
+        if (!get().enabled) return;
+        for (const [key, label, min, max, step] of [
+            ['sizeX', 'blob.size', 1, 10000, 10],
+            ['opacity', 'blob.opacity', 0, 1, 0.05]]) {
+            const num = this.input('number', get()[key]);
+            Object.assign(num, { min: String(min), max: String(max), step: String(step) });
+            num.addEventListener('input', () => {
+                const n = Number(num.value); if (num.value !== '' && Number.isFinite(n)) edit(key, this.round(Math.max(Number(min), Math.min(Number(max), n)), 2));
+            });
+            num.addEventListener('blur', () => { num.value = String(get()[key]); });
+            host.appendChild(this.row(label, null, num));
+        }
+        const box = this.el('div', 'blob-curve');
+        const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
+        svg.setAttribute('viewBox', '0 0 240 110'); svg.setAttribute('preserveAspectRatio', 'none'); svg.setAttribute('aria-hidden', 'true');
+        const line = document.createElementNS(ns, 'polyline'); svg.appendChild(line);
+        const dots = Array.from({ length: 5 }, () => { const c = document.createElementNS(ns, 'circle'); c.setAttribute('r', '5'); svg.appendChild(c); return c; });
+        const sliders = this.el('div', 'blob-sliders');
+        const inputs = Array.from({ length: 5 }, (_, i) => {
+            const input = this.input('range', get().curve[i]);
+            Object.assign(input, { min: '0', max: '1', step: '0.01' });
+            input.setAttribute('aria-label', I18N.t('blob.point') + ' ' + (i + 1));
+            input.disabled = i === 0 || i === 4;
+            input.addEventListener('input', () => setPoint(i, Number(input.value)));
+            sliders.appendChild(input); return input;
+        });
+        const draw = () => {
+            const curve = get().curve, points = curve.map((v, i) => [10 + i * 55, 100 - v * 90]);
+            line.setAttribute('points', points.map(p => p.join(',')).join(' '));
+            dots.forEach((dot, i) => { dot.setAttribute('cx', String(points[i][0])); dot.setAttribute('cy', String(points[i][1])); inputs[i].value = String(curve[i]); });
+        };
+        const setPoint = (i, value) => { const curve = get().curve.slice(); curve[i] = this.round(Math.max(0, Math.min(1, value)), 2); edit('curve', curve); draw(); };
+        let active = -1;
+        const move = e => {
+            if (active < 0) return;
+            const r = svg.getBoundingClientRect(), y = (e.clientY - r.top) * 110 / r.height;
+            setPoint(active, (100 - y) / 90);
+        };
+        svg.addEventListener('pointerdown', e => {
+            const r = svg.getBoundingClientRect(), x = (e.clientX - r.left) * 240 / r.width;
+            active = Math.max(1, Math.min(3, Math.round((x - 10) / 55))); svg.setPointerCapture(e.pointerId); move(e); e.preventDefault();
+        });
+        svg.addEventListener('pointermove', move);
+        svg.addEventListener('pointerup', () => { active = -1; });
+        svg.addEventListener('pointercancel', () => { active = -1; });
+        box.append(svg, sliders); draw();
+        host.appendChild(this.row('blob.curve', 'blob.curveHint', box));
+    },
+
+    renderMaterials(host, rec) {
+        host.appendChild(this.el('div','props-section',I18N.t('mat.title')));
+        const slots=this.lab.location.materialSlots(rec);
+        if (!slots.length) { host.appendChild(this.el('div','objects-empty',I18N.t('mat.empty')));return; }
+        for (let i=0;i<slots.length;i++) {
+            const slot=slots[i], entry=(rec.def.materials || []).find(x=>x.slot===i) || {slot:i};
+            const title=this.el('div','material-title',slot.material.name.replace(/^.*\//,'') || (I18N.t('mat.slot')+' '+(i+1)));
+            const reset=this.el('button','',I18N.t('mat.reset'));
+            reset.title=I18N.t('mat.resetHint');reset.addEventListener('click',()=>this.resetMaterial(i));title.appendChild(reset);host.appendChild(title);
+            const color=this.input('color',entry.color || slot.originalColor.toHexString());
+            color.addEventListener('input',()=>this.setMaterial(i,'color',color.value));
+            host.appendChild(this.row('mat.color','mat.colorHint',color));
+            const textures=this.textureFiles.slice();
+            if(entry.texture && !textures.includes(entry.texture))textures.push(entry.texture);
+            const mode=entry.texture == null ? '__model' : entry.texture === '' ? '__none' : entry.texture;
+            const file=this.choice([['__model',I18N.t('mat.modelTexture')],['__none',I18N.t('mat.noTexture')]]
+                .concat(textures.map(p=>[p,p.replace(/^assets\//,'')])),mode);
+            file.addEventListener('change',()=>{this.setMaterial(i,'texture',file.value==='__model'?undefined:file.value==='__none'?'':file.value);this.renderProps();});
+            host.appendChild(this.row('mat.texture','mat.textureHint',file));
+            if(entry.texture) {
+                const preview=/** @type {HTMLImageElement} */ (this.el('img','material-preview'));
+                preview.src='/'+entry.texture;preview.alt=entry.texture;host.appendChild(preview);
+            }
+            const original=/** @type {BABYLON.Texture | null} */ (slot.originalTexture);
+            for(const [key,label,fallback] of [['uScale','mat.uScale',original?original.uScale:1],['vScale','mat.vScale',original?original.vScale:1],['alpha','mat.alpha',slot.originalAlpha]]) {
+                const input=this.input('number',this.fmt(entry[key] == null ? fallback : entry[key]));
+                input.min=key==='alpha'?'0':'0.001';input.max=key==='alpha'?'1':'100';input.step=key==='alpha'?'0.05':'0.1';
+                input.addEventListener('input',()=>{if(input.value==='')return;const n=Number(input.value);if(!Number.isFinite(n))return;
+                    const v=key==='alpha'?Math.max(0,Math.min(1,n)):Math.max(.001,Math.min(100,n));this.setMaterial(i,key,this.round(v,3));});
+                host.appendChild(this.row(label,key==='alpha'?'mat.alphaHint':'mat.tilingHint',input));
+            }
+        }
+        host.appendChild(this.el('div','material-note',I18N.t('mat.hint')));
     },
 
     // The "Animation" section. A .glb model — its looped clip (Location3D.playClip reads def.clip
@@ -759,7 +933,7 @@ const ObjectsPanel = {
         for (const key of ['falloffMin', 'falloffMax']) spheres[key].setEnabled(on);
         if (!on) return;
         const x = Number(rec.def.x) || 0, y = Number(rec.def.y) || 0;
-        const t = this.lab.location.terrain;
+        const t = this.lab.location.terrainEnabled ? this.lab.location.terrain : null;
         const at = rec.mesh ? rec.mesh.position : new BABYLON.Vector3(x, (t ? t.heightAt(x, y) : 0) + (Number(rec.def.h) || 0), y);
         const eff = this.soundRadii(s);
         for (const key of ['falloffMin', 'falloffMax']) {
@@ -853,7 +1027,7 @@ const ObjectsPanel = {
 /** @satisfies {Record<string, any>} */
 const PaneTabs = {
     KEY: 'arcengine.editor.tab',
-    TABS: ['settings', 'objects', 'ui', 'sound'],
+    TABS: ['settings', 'objects', 'player', 'ui', 'sound'],
     current: 'settings',
 
     init() {

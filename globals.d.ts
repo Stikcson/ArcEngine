@@ -45,6 +45,11 @@ interface UIRecord {
 }
 
 /** LOCATION_OBJECTS record (Objects.js, written by the editor). */
+interface ContactShadowProfile { sizeX: number; opacity: number; curve: number[] }
+interface ContactShadowTag extends ContactShadowProfile { tag: string; enabled: boolean }
+interface ContactShadowConfig { enabled: boolean; defaults: ContactShadowProfile; tags: ContactShadowTag[] }
+declare var CONTACT_SHADOW_CONFIG: ContactShadowConfig;
+
 interface LocationObjectDef {
     name: string;
     /** Path from the game root: assets/models/….fbx */
@@ -67,6 +72,19 @@ interface LocationObjectDef {
     hidden?: boolean;
     /** A sound standing at the object (Sound3D): src — assets/sounds/…, looped unless loop is false. */
     sound?: { src: string; volume?: number; loop?: boolean; falloffMin?: number; falloffMax?: number };
+    /** Per-model material slot overrides, authored in the Objects inspector. */
+    materials?: { slot: number; color?: string; texture?: string; uScale?: number; vScale?: number; alpha?: number }[];
+    sensor?: { distance: number; radius: number };
+    blobShadow?: { enabled: boolean; sizeX: number; sizeZ: number; opacity: number; curve: number[] };
+}
+
+interface MaterialSlotState {
+    material: BABYLON.StandardMaterial;
+    originalColor: BABYLON.Color3;
+    originalTexture: BABYLON.BaseTexture | null;
+    originalAlpha: number;
+    runtimeTexture: BABYLON.BaseTexture | null;
+    textureKey: string;
 }
 
 /** Location object: Location3D.objects. */
@@ -91,4 +109,6 @@ interface LocationObject {
     /** The playing def.sound and what it was started from (Location3D.updateSound). */
     sound?: SoundHandle | null;
     soundKey?: string;
+    materialSlots?: MaterialSlotState[];
+    blob?: { mesh: BABYLON.Mesh; material: BABYLON.StandardMaterial; textureKey: string; groundY: number | null; groundKey: string; groundTimer: number };
 }

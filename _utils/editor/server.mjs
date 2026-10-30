@@ -25,11 +25,13 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import url from 'node:url';
 import { execFile } from 'node:child_process';
-import { failure, isModelPath, isSoundPath, saveConstants, saveObjects, saveUI } from './save.mjs';
+import { failure, isModelPath, isSoundPath, isImagePath, saveConstants, saveObjects, saveUI } from './save.mjs';
+import { listScenes, readScene, createScene, saveScene, importLegacyScene } from './scenes.mjs';
+import { readContactShadows, saveContactShadows } from './contact-shadows.mjs';
 
 // Server contract version. Bump on EVERY change of the endpoints or the
 // response format — the client checks it against EDITOR_API_VERSION in schema.js.
-const EDITOR_API_VERSION = 20;
+const EDITOR_API_VERSION = 28;
 
 const ROOT = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '..', '..');
 const MODELS_DIR = path.join(ROOT, 'assets', 'models');
@@ -170,6 +172,27 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/api/status') {
     return sendJson(res, 200, { ok: true, editor: 'arcengine', api: EDITOR_API_VERSION, root: ROOT });
   }
+  if (pathname === '/api/contact-shadows') {
+    try {
+      const result=req.method==='GET' ? await readContactShadows(ROOT) : req.method==='POST' ? await (async()=>{const body=JSON.parse(await readBody(req));return saveContactShadows(ROOT,body.revision,body.config);})() : null;
+      if (!result) return send(res,405,{'Content-Type':'text/plain'},'Method Not Allowed');
+      return sendJson(res,result.ok?200:result.code==='contact_shadow_conflict'?409:400,result);
+    } catch(e) {return sendJson(res,500,{ok:false,code:'contact_shadow_error',error:'Contact shadow operation failed'});}
+  }
+  if (pathname === '/api/scenes' && req.method === 'GET') return sendJson(res,200,await listScenes(ROOT));
+  if (pathname === '/api/scene' && req.method === 'GET') {
+    const result=await readScene(ROOT,new URL(req.url,'http://localhost').searchParams.get('id'));
+    return sendJson(res,result.ok?200:400,result);
+  }
+  if (pathname === '/api/scene/create' || pathname === '/api/scene/save' || pathname === '/api/scene/import-legacy') {
+    if(req.method!=='POST')return send(res,405,{'Content-Type':'text/plain'},'Method Not Allowed');
+    try {
+      const body=JSON.parse(await readBody(req) || '{}');
+      const result=pathname.endsWith('/create') ? await createScene(ROOT,body.name,body.objects,body.mode,body.terrainEnabled,body.lighting,body.player)
+        : pathname.endsWith('/import-legacy') ? await importLegacyScene(ROOT,body.name) : await saveScene(ROOT,body.id,body.revision,body.objects,body.terrainEnabled,body.lighting,body.player);
+      return sendJson(res,result.ok?200:result.code==='scene_conflict'?409:400,result);
+    } catch(e) { return sendJson(res,500,{ok:false,code:'scene_error',error:'Scene operation failed'}); }
+  }
   if (pathname === '/api/save-constants') {
     if (req.method !== 'POST') return send(res, 405, { 'Content-Type': 'text/plain' }, 'Method Not Allowed');
     try {
@@ -217,6 +240,21 @@ const server = http.createServer(async (req, res) => {
     const names = await fsp.readdir(path.join(ROOT, 'assets', 'sounds')).catch(() => []);
     const sounds = names.map(n => 'assets/sounds/' + n).filter(isSoundPath).sort();
     return sendJson(res, 200, { ok: true, sounds });
+  }
+  // Discover local texture files without following symlinks or exposing filesystem paths.
+  if (pathname === '/api/textures') {
+    const textures=[];
+    async function walk(dir, relative) {
+      const entries=await fsp.readdir(dir,{withFileTypes:true}).catch(()=>[]);
+      for (const entry of entries) {
+        if (entry.name.startsWith('.') || entry.isSymbolicLink()) continue;
+        const rel=relative+'/'+entry.name, full=path.join(dir,entry.name);
+        if (entry.isDirectory()) await walk(full,rel);
+        else if (entry.isFile() && isImagePath(rel)) textures.push(rel);
+      }
+    }
+    await walk(path.join(ROOT,'assets'),'assets');textures.sort();
+    return sendJson(res,200,{ok:true,textures});
   }
   if (pathname === '/api/pick-model' || pathname === '/api/import-model') {
     if (req.method !== 'POST') return send(res, 405, { 'Content-Type': 'text/plain' }, 'Method Not Allowed');
